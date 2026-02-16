@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Michaela - KI-Sprachassistent | Masterprojekt</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0a0a0a; color: #e5e5e5; overflow: hidden; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Slide Transitions */
+        .slide { 
+            position: absolute; 
+            width: 100%; 
+            height: 100%; 
+            opacity: 0; 
+            transform: translateX(100px); 
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            padding: 3rem;
+            box-sizing: border-box;
+        }
+        .slide.active { opacity: 1; transform: translateX(0); pointer-events: all; }
+        .slide.prev { opacity: 0; transform: translateX(-100px); }
+        
+        /* Glowing Effects */
+        .glow-text { text-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
+        .glow-box { box-shadow: 0 0 30px rgba(59, 130, 246, 0.1); }
+        
+        /* Animated Background Grid */
+        .bg-grid {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(59, 130, 246, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -1;
+            animation: gridMove 20s linear infinite;
+        }
+        @keyframes gridMove {
+            0% { transform: perspective(500px) rotateX(60deg) translateY(0); }
+            100% { transform: perspective(500px) rotateX(60deg) translateY(50px); }
+        }
+        
+        /* Code Syntax Highlighting */
+        .code-keyword { color: #ff79c6; }
+        .code-string { color: #f1fa8c; }
+        .code-func { color: #50fa7b; }
+        .code-comment { color: #6272a4; }
+        .code-var { color: #8be9fd; }
+        
+        /* Flow Animation */
+        .flow-line {
+            stroke-dasharray: 10;
+            animation: dash 1s linear infinite;
+        }
+        @keyframes dash {
+            to { stroke-dashoffset: -20; }
+        }
+        
+        /* Pulse Animation for Active States */
+        .pulse-ring {
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 20px rgba(59, 130, 246, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        
+        /* Terminal Effect */
+        .terminal {
+            background: #1e1e1e;
+            border-radius: 8px;
+            border: 1px solid #333;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        .terminal-header {
+            background: #2d2d2d;
+            padding: 0.5rem 1rem;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            gap: 0.5rem;
+        }
+        .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
+        
+        /* Interactive Diagram Nodes */
+        .node {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .node:hover {
+            transform: scale(1.05);
+            filter: brightness(1.2);
+        }
+        
+        /* Status Indicators */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .status-active { background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
+        .status-waiting { background: rgba(234, 179, 8, 0.2); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); }
+        .status-offline { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+        
+        /* Progress Bar */
+        .progress-bar {
+            position: fixed; bottom: 0; left: 0; height: 4px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            transition: width 0.3s ease;
+            z-index: 100;
+        }
+        
+        /* Navigation Hints */
+        .nav-hint {
+            position: fixed; bottom: 2rem; right: 2rem;
+            display: flex; gap: 1rem; align-items: center;
+            opacity: 0.5; font-size: 0.875rem;
+        }
+        .key {
+            background: rgba(255,255,255,0.1);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100">
+
+<div class="bg-grid"></div>
+<div class="progress-bar" id="progressBar" style="width: 0%"></div>
+
+<!-- Slide 1: Title -->
+<div class="slide active" id="slide-0">
+    <div class="flex-1 flex flex-col justify-center items-center text-center">
+        <div class="mb-8 relative">
+            <div class="absolute inset-0 bg-blue-500 blur-3xl opacity-20 rounded-full"></div>
+            <i data-lucide="bot" class="w-32 h-32 text-blue-400 relative z-10"></i>
+        </div>
+        <h1 class="text-7xl font-bold mb-4 glow-text bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+            Michaela
+        </h1>
+        <p class="text-2xl text-gray-400 mb-8">Offline-fähiger KI-Sprachassistent mit Multithreading-Architektur</p>
+        <div class="flex gap-4 text-sm mono">
+            <span class="px-4 py-2 bg-blue-500/10 border border-blue-500/30 rounded-full">Python 3.11</span>
+            <span class="px-4 py-2 bg-purple-500/10 border border-purple-500/30 rounded-full">Gemini 2.5 Flash</span>
+            <span class="px-4 py-2 bg-green-500/10 border border-green-500/30 rounded-full">Vosk STT</span>
+            <span class="px-4 py-2 bg-orange-500/10 border border-orange-500/30 rounded-full">Edge-TTS</span>
+        </div>
+        <div class="mt-12 text-gray-500 text-sm">
+            Masterprojekt • Universität • 2025
+        </div>
+    </div>
+</div>
+
+<!-- Slide 2: Problem & Lösung -->
+<div class="slide" id="slide-1">
+    <h2 class="text-4xl font-bold mb-8 flex items-center gap-3">
+        <i data-lucide="target" class="text-blue-400"></i>
+        Problemstellung & Lösung
+    </h2>
+    <div class="grid grid-cols-2 gap-8 flex-1">
+        <div class="bg-red-500/5 border border-red-500/20 rounded-xl p-6 glow-box">
+            <h3 class="text-xl font-semibold text-red-400 mb-4 flex items-center gap-2">
+                <i data-lucide="x-circle"></i> Bestehende Probleme
+            </h3>
+            <ul class="space-y-3 text-gray-300">
+                <li class="flex items-start gap-2">
+                    <i data-lucide="cloud-off" class="w-5 h-5 mt-0.5 text-red-400"></i>
+                    <span>Cloud-basierte Assistenten erfordern ständige Internetverbindung</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <i data-lucide="lock" class="w-5 h-5 mt-0.5 text-red-400"></i>
+                    <span>Datenschutzbedenken bei externer Sprachverarbeitung</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <i data-lucide="zap-off" class="w-5 h-5 mt-0.5 text-red-400"></i>
+                    <span>Hohe Latenz durch Server-Roundtrips</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <i data-lucide="dollar-sign" class="w-5 h-5 mt-0.5 text-red-400"></i>
+                    <span>Abhängigkeit von teuren API-Keys</span>
+                </li>
+            </ul>
+        </div>
+        <div class="bg-green-500/5 border border-green-500/20 rounded-xl p-6 glow-box">
+            <h3 class="text-xl font-semibold text-green-400 mb-4 flex items-center gap-2">
+                <i data-lucide="check-circle"></i> Unsere Lösung
+            </h3>
+            <ul class="space-y-3 text-gray-300">
+                <li class="flex items-start gap-2">
+                    <i data-lucide="cpu" class="w-5 h-5 mt-0.5 text-green-400"></i>
+                    <span><strong>Hybride Architektur:</strong> Lokale STT (Vosk) + Cloud LLM (Gemini)</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <i data-lucide="shield" class="w-5 h-5 mt-0.5 text-green-400"></i>
+                    <span><strong>Privacy-by-Design:</strong> Spracherkennung offline auf dem Gerät</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <i data-lucide="zap" class="w-5 h-5 mt-0.5 text-green-400"></i>
+                    <span><strong>Multithreading:</strong> Parallele Verarbeitung von Audio, KI und TTS</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <i data-lucide="mic" class="w-5 h-5 mt-0.5 text-green-400"></i>
+                    <span><strong>Wake-Word Detection:</strong> "Hallo Michaela" aktiviert das System</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <div class="mt-8 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+        <p class="text-center text-blue-200">
+            <i data-lucide="info" class="inline w-4 h-4 mr-2"></i>
+            <strong>Kerninnovation:</strong> State-Machine-basierte Session-Verwaltung mit Thread-sicherem State-Locking
+        </p>
+    </div>
+</div>
+
+<!-- Slide 3: Systemarchitektur -->
+<div class="slide" id="slide-2">
+    <h2 class="text-4xl font-bold mb-4 flex items-center gap-3">
+        <i data-lucide="network" class="text-blue-400"></i>
+        Systemarchitektur
+    </h2>
+    <p class="text-gray-400 mb-6">Drei parallele Worker-Threads mit Queue-basierter Kommunikation</p>
+    
+    <div class="flex-1 relative bg-gray-900/50 rounded-2xl border border-gray-700 p-8 overflow-hidden">
+        <!-- Architecture Diagram -->
+        <svg class="absolute inset-0 w-full h-full" style="z-index: 0;">
+            <!-- Connection Lines -->
+            <line x1="20%" y1="30%" x2="50%" y2="30%" stroke="#3b82f6" stroke-width="2" class="flow-line" opacity="0.6"/>
+            <line x1="50%" y1="30%" x2="80%" y2="30%" stroke="#8b5cf6" stroke-width="2" class="flow-line" opacity="0.6"/>
+            <line x1="50%" y1="30%" x2="50%" y2="70%" stroke="#10b981" stroke-width="2" class="flow-line" opacity="0.6"/>
+        </svg>
+
+        <div class="relative z-10 grid grid-cols-3 gap-8 h-full items-center">
+            <!-- Audio Thread -->
+            <div class="node bg-gray-800 border-2 border-blue-500/50 rounded-xl p-6 text-center pulse-ring">
+                <div class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="mic" class="w-8 h-8 text-blue-400"></i>
+                </div>
+                <h3 class="font-bold text-lg mb-2">Audio Thread</h3>
+                <p class="text-sm text-gray-400 mb-3">Main Thread</p>
+                <div class="space-y-2 text-xs mono text-left bg-black/30 p-3 rounded">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 bg-yellow-400 rounded-full"></span>
+                        <span>sounddevice</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 bg-blue-400 rounded-full"></span>
+                        <span>Vosk Model</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+                        <span>State Machine</span>
+                    </div>
+                </div>
+                <div class="mt-3 text-xs text-blue-300">Queue: audio_q</div>
+            </div>
+
+            <!-- Gemini Thread -->
+            <div class="node bg-gray-800 border-2 border-purple-500/50 rounded-xl p-6 text-center">
+                <div class="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="brain" class="w-8 h-8 text-purple-400"></i>
+                </div>
+                <h3 class="font-bold text-lg mb-2">Gemini Worker</h3>
+                <p class="text-sm text-gray-400 mb-3">Daemon Thread</p>
+                <div class="space-y-2 text-xs mono text-left bg-black/30 p-3 rounded">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 bg-purple-400 rounded-full"></span>
+                        <span>google.genai</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 bg-red-400 rounded-full"></span>
+                        <span>Retry-Logic</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 bg-orange-400 rounded-full"></span>
+                        <span>Session Mgmt</span>
+                    </div>
+                </div>
+                <div class="mt-3 text-xs text-purple-300">Queue: text_q</div>
+            </div>
+
+            <!-- TTS Thread -->
+            <div class="node bg-gray-800 border-2 border-green-500/50 rounded-xl p-6 text-center">
+                <div class="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="volume-2" class="w-8 h-8 text-green-400"></i>
+                </div>
+                <h3 class="font-bold text-lg mb-2">TTS Worker</h3>
+                <p class="text-sm text-gray-400 mb-3">Daemon Thread</p>
+                <div class="space-y-2 text-xs mono text-left bg-black/30 p-3 rounded">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 bg-cyan-400 rounded-full"></span>
+                        <span>edge-tts</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 bg-pink-400 rounded-full"></span>
+                        <span>pyttsx3</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 bg-white rounded-full"></span>
+                        <span>ffplay/mpg123</span>
+                    </div>
+                </div>
+                <div class="mt-3 text-xs text-green-300">Queue: tts_q</div>
+            </div>
+        </div>
+
+        <!-- State Indicator -->
+        <div class="absolute bottom-4 left-4 right-4 bg-black/40 rounded-lg p-4 border border-gray-700">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <span class="text-sm font-semibold text-gray-400">Session State:</span>
+                    <div id="state-visual" class="flex gap-2">
+                        <span class="status-badge status-waiting">
+                            <span class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                            WAITING (Wake Word)
+                        </span>
+                    </div>
+                </div>
+                <div class="text-xs mono text-gray-500">session_id: <span id="session-id">0</span> | active: <span id="active-state">False</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 4: State Machine -->
+<div class="slide" id="slide-3">
+    <h2 class="text-4xl font-bold mb-6 flex items-center gap-3">
+        <i data-lucide="toggle-left" class="text-blue-400"></i>
+        State Machine & Wake-Word Detection
+    </h2>
+    
+    <div class="grid grid-cols-2 gap-8 flex-1">
+        <div class="space-y-6">
+            <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <h3 class="text-lg font-semibold mb-4 text-blue-400">Zustandsübergänge</h3>
+                <div class="space-y-4">
+                    <div class="flex items-center gap-4 p-3 bg-gray-900 rounded-lg border-l-4 border-yellow-500">
+                        <div class="w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center">
+                            <i data-lucide="sleep" class="text-yellow-400"></i>
+                        </div>
+                        <div>
+                            <div class="font-semibold">INACTIVE</div>
+                            <div class="text-sm text-gray-400">Wartet auf "Hallo Michaela"</div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-center">
+                        <i data-lucide="arrow-down" class="text-gray-600"></i>
+                    </div>
+
+                    <div class="flex items-center gap-4 p-3 bg-gray-900 rounded-lg border-l-4 border-green-500">
+                        <div class="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center">
+                            <i data-lucide="activity" class="text-green-400"></i>
+                        </div>
+                        <div>
+                            <div class="font-semibold">ACTIVE</div>
+                            <div class="text-sm text-gray-400">Diktat-Modus + Gemini-Processing</div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-center">
+                        <i data-lucide="arrow-down" class="text-gray-600"></i>
+                    </div>
+
+                    <div class="flex items-center gap-4 p-3 bg-gray-900 rounded-lg border-l-4 border-red-500">
+                        <div class="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
+                            <i data-lucide="sleep" class="text-red-400"></i>
+                        </div>
+                        <div>
+                            <div class="font-semibold">SLEEP</div>
+                            <div class="text-sm text-gray-400">"Danke Michaela" → Zurück zu INACTIVE</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+                <h4 class="font-semibold text-blue-400 mb-2">Sicherheitsfeatures:</h4>
+                <ul class="text-sm space-y-1 text-gray-300">
+                    <li>• <strong>Cooldown (0.8s):</strong> Verhindert doppelte Trigger</li>
+                    <li>• <strong>Arming Delay (0.35s):</strong> Unterdrückt Echo nach Wake-Word</li>
+                    <li>• <strong>Session ID:</strong> Thread-sichere Invalidierung alter Requests</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="terminal h-full flex flex-col">
+            <div class="terminal-header">
+                <div class="terminal-dot bg-red-500"></div>
+                <div class="terminal-dot bg-yellow-500"></div>
+                <div class="terminal-dot bg-green-500"></div>
+                <span class="ml-2 text-xs text-gray-400">state_machine.py</span>
+            </div>
+            <div class="p-4 overflow-auto flex-1 text-sm">
+<pre><span class="code-comment"># Thread-sichere State-Verwaltung</span>
+<span class="code-keyword">@dataclass</span>
+<span class="code-keyword">class</span> <span class="code-var">SessionState</span>:
+    active: <span class="code-var">bool</span> = <span class="code-keyword">False</span>
+    session_id: <span class="code-var">int</span> = <span class="code-var">0</span>
+
+state_lock = threading.<span class="code-func">Lock</span>()
+session_state = <span class="code-func">SessionState</span>()
+
+<span class="code-comment"># Wake-Word Erkennung mit Vosk</span>
+<span class="code-keyword">if</span> wake_rec.<span class="code-func">AcceptWaveform</span>(data):
+    txt = json.<span class="code-func">loads</span>(...).<span class="code-func">get</span>(<span class="code-string">"text"</span>, <span class="code-string">""</span>)
+    
+    <span class="code-keyword">if</span> <span class="code-func">starts_with_phrase</span>(txt, <span class="code-string">"hallo michaela"</span>):
+        <span class="code-keyword">with</span> state_lock:
+            session_state.active = <span class="code-keyword">True</span>
+            session_state.session_id += <span class="code-var">1</span>  <span class="code-comment"># Invalidiere alte Sessions</span>
+        
+        <span class="code-comment"># Signal an Gemini Worker</span>
+        text_q.<span class="code-func">put</span>(<span class="code-string">"__WAKE__"</span>)
+        <span class="code-func">flush_queue</span>(audio_q)  <span class="code-comment"># Clear altes Audio</span></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 5: TTS System -->
+<div class="slide" id="slide-4">
+    <h2 class="text-4xl font-bold mb-6 flex items-center gap-3">
+        <i data-lucide="volume-2" class="text-green-400"></i>
+        Text-to-Speech Pipeline
+    </h2>
+
+    <div class="grid grid-cols-3 gap-6 mb-6">
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 text-center">
+            <div class="w-14 h-14 bg-cyan-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="cloud" class="text-cyan-400"></i>
+            </div>
+            <h3 class="font-bold mb-2">Edge-TTS</h3>
+            <p class="text-xs text-gray-400 mb-2">Online (Neural)</p>
+            <div class="text-xs mono bg-black/30 p-2 rounded text-left">
+                Voice: de-DE-KatjaNeural<br>
+                Rate: +0%<br>
+                Format: MP3/WAV
+            </div>
+        </div>
+
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 text-center">
+            <div class="w-14 h-14 bg-pink-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="cpu" class="text-pink-400"></i>
+            </div>
+            <h3 class="font-bold mb-2">pyttsx3</h3>
+            <p class="text-xs text-gray-400 mb-2">Offline (Roboter)</p>
+            <div class="text-xs mono bg-black/30 p-2 rounded text-left">
+                Engine: sapi5/nsss<br>
+                Rate: 175 WPM<br>
+                Fallback-Modus
+            </div>
+        </div>
+
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 text-center">
+            <div class="w-14 h-14 bg-orange-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="play-circle" class="text-orange-400"></i>
+            </div>
+            <h3 class="font-bold mb-2">Playback</h3>
+            <p class="text-xs text-gray-400 mb-2">System-Audio</p>
+            <div class="text-xs mono bg-black/30 p-2 rounded text-left">
+                ffplay (ffmpeg)<br>
+                mpg123<br>
+                sounddevice
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-gray-900 rounded-xl p-6 border border-gray-700 flex-1">
+        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+            <i data-lucide="git-branch" class="text-blue-400"></i>
+            Fallback-Kaskade & Audio-Processing
+        </h3>
+        
+        <div class="terminal flex-1">
+            <div class="terminal-header">
+                <span class="text-xs text-gray-400">tts_worker.py</span>
+            </div>
+            <div class="p-4 text-sm overflow-auto">
+<pre><span class="code-comment"># Automatischer Fallback Edge → pyttsx3</span>
+use_edge = (TTS_MODE == <span class="code-string">"edge"</span> <span class="code-keyword">and</span> HAVE_EDGE_TTS)
+<span class="code-keyword">if not</span> use_edge <span class="code-keyword">and</span> HAVE_PYTTSX3:
+    use_pyttsx3 = <span class="code-keyword">True</span>  <span class="code-comment"># Fallback</span>
+
+<span class="code-comment"># MP3 Dekodierung ohne Python-Dependencies</span>
+<span class="code-keyword">def</span> <span class="code-func">_play_mp3_bytes_blocking</span>(mp3_bytes):
+    <span class="code-keyword">with</span> tempfile.<span class="code-func">NamedTemporaryFile</span>(suffix=<span class="code-string">".mp3"</span>) <span class="code-keyword">as</span> f:
+        f.<span class="code-func">write</span>(mp3_bytes)
+        subprocess.<span class="code-func">run</span>([<span class="code-string">"ffplay"</span>, <span class="code-string">"-nodisp"</span>, 
+                         <span class="code-string">"-autoexit"</span>, f.name])
+
+<span class="code-comment"># Feedback-Loop Prevention</span>
+tts_busy_evt = threading.<span class="code-func">Event</span>()  <span class="code-comment"># Blockiert STT während Sprache</span></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 6: Prompt Engineering -->
+<div class="slide" id="slide-5">
+    <h2 class="text-4xl font-bold mb-6 flex items-center gap-3">
+        <i data-lucide="message-square" class="text-purple-400"></i>
+        Prompt Engineering & Charakter
+    </h2>
+
+    <div class="grid grid-cols-2 gap-8 flex-1">
+        <div class="space-y-4">
+            <div class="bg-purple-500/10 border border-purple-500/30 rounded-xl p-6">
+                <h3 class="text-lg font-semibold text-purple-400 mb-3">Charakter-Definition</h3>
+                <blockquote class="border-l-4 border-purple-400 pl-4 italic text-gray-300">
+                    "Trockener Charme eines Hightech-Butlers. Tony-Stark-ähnlich (smart, schnell, leicht sarkastisch), aber nie respektlos."
+                </blockquote>
+                <div class="mt-4 space-y-2 text-sm">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="user" class="w-4 h-4 text-purple-400"></i>
+                        <span>Creator: Meister Tobias</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="languages" class="w-4 h-4 text-purple-400"></i>
+                        <span>Strikte Deutsch-Verwendung</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="list" class="w-4 h-4 text-purple-400"></i>
+                        <span>Max. 3-5 Bulletpoints</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <h3 class="text-lg font-semibold mb-3 text-blue-400">System Instructions</h3>
+                <ul class="space-y-2 text-sm text-gray-300">
+                    <li class="flex items-start gap-2">
+                        <span class="text-green-400">✓</span>
+                        <span>Kurze, sachliche Sätze (2-6)</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-green-400">✓</span>
+                        <span>Erst Lösung, dann optional 1 One-Liner</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-green-400">✓</span>
+                        <span>Bei fehlenden Infos: Genau 1 Rückfrage</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-red-400">✗</span>
+                        <span>Keine langen Aufzählungen</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-red-400">✗</span>
+                        <span>Keine Fakten erfinden</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="terminal flex flex-col">
+            <div class="terminal-header">
+                <span class="text-xs text-gray-400">system_instructions.txt</span>
+            </div>
+            <div class="p-4 overflow-auto flex-1 text-sm text-gray-300">
+<pre>Du bist: ein deutschsprachiger KI-Assistent mit dem 
+trockenen Charme eines Hightech-Butlers.
+
+Ziele:
+- Liefere nützliche, sofort umsetzbare Antworten
+- Sei witzig genug für eine Vorführung, aber immer kompetent
+- Bleib klar und sprachfreundlich (für Voice-Ausgabe)
+
+Kernregeln:
+- Antworte IMMER auf Deutsch
+- Kurze, sachliche Sätze. Keine Romanlängen
+- Erst Lösung/Antwort. Danach optional ein kurzer 
+  One-Liner (max. 1)
+- Keine langen Aufzählungen: maximal 5 Bulletpoints, 
+  bevorzugt 3
+- Wenn Infos fehlen: stelle GENAU 1 Rückfrage
+
+Stil & Gags (sparsam, aber „showtauglich"):
+- Sprich Meister Tobias gelegentlich mit „Meister Tobias" an
+- Humor: trocken, intelligent, nie beleidigend</pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 7: Error Handling -->
+<div class="slide" id="slide-6">
+    <h2 class="text-4xl font-bold mb-6 flex items-center gap-3">
+        <i data-lucide="shield-alert" class="text-red-400"></i>
+        Resilienz & Error Handling
+    </h2>
+
+    <div class="grid grid-cols-2 gap-8 flex-1">
+        <div class="space-y-4">
+            <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <h3 class="text-lg font-semibold mb-4 text-orange-400">Retry-Strategie (Exponential Backoff)</h3>
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between p-3 bg-black/30 rounded">
+                        <span class="mono text-sm">Attempt 1</span>
+                        <span class="text-yellow-400">0.6s + jitter</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-black/30 rounded">
+                        <span class="mono text-sm">Attempt 2</span>
+                        <span class="text-orange-400">1.2s + jitter</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-black/30 rounded">
+                        <span class="mono text-sm">Attempt 3</span>
+                        <span class="text-red-400">2.4s + jitter</span>
+                    </div>
+                    <div class="text-center text-gray-500 text-sm mt-2">Max: 5 Versuche, Max Sleep: 8s</div>
+                </div>
+            </div>
+
+            <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-6">
+                <h3 class="text-lg font-semibold text-red-400 mb-3">Fehlerkategorien</h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex items-center gap-2">
+                        <span class="status-badge status-offline">Retry</span>
+                        <span>429 (Rate Limit), 5xx, Timeout</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="status-badge status-offline">Fatal</span>
+                        <span>Quota Exhausted (RESOURCE_EXHAUSTED)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="status-badge status-waiting">Queue</span>
+                        <span>Queue.Full → Flush & Retry</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="terminal flex flex-col">
+            <div class="terminal-header">
+                <span class="text-xs text-gray-400">error_handling.py</span>
+            </div>
+            <div class="p-4 overflow-auto flex-1 text-sm">
+<pre><span class="code-keyword">def</span> <span class="code-func">should_retry</span>(exc: Exception) -> <span class="code-var">bool</span>:
+    status = <span class="code-func">getattr</span>(exc, <span class="code-string">"status_code"</span>, <span class="code-keyword">None</span>)
+    
+    <span class="code-comment"># Quota-Error = sofortiger Abbruch</span>
+    <span class="code-keyword">if</span> status == <span class="code-var">429</span> <span class="code-keyword">and</span> <span class="code-func">_looks_like_quota_exhausted</span>(exc):
+        <span class="code-keyword">return False</span>
+    
+    <span class="code-comment"># Netzwerk-Fehler = Retry</span>
+    <span class="code-keyword">if</span> status <span class="code-keyword">in</span> (<span class="code-var">429</span>, <span class="code-var">500</span>, <span class="code-var">502</span>, <span class="code-var">503</span>, <span class="code-var">504</span>):
+        <span class="code-keyword">return True</span>
+    <span class="code-keyword">if</span> <span class="code-string">"timeout"</span> <span class="code-keyword">in</span> <span class="code-func">str</span>(exc).<span class="code-func">lower</span>():
+        <span class="code-keyword">return True</span>
+    <span class="code-keyword">return False</span>
+
+<span class="code-keyword">def</span> <span class="code-func">backoff_sleep</span>(attempt: <span class="code-var">int</span>):
+    base = RETRY_BASE_SLEEP * (<span class="code-var">2</span> ** attempt)
+    sleep_s = <span class="code-func">min</span>(RETRY_MAX_SLEEP, 
+                  base + random.<span class="code-func">uniform</span>(<span class="code-var">0</span>, <span class="code-var">0.25</span>))
+    time.<span class="code-func">sleep</span>(sleep_s)</pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 8: Live Demo -->
+<div class="slide" id="slide-7">
+    <div class="flex-1 flex flex-col justify-center items-center text-center">
+        <div class="mb-8 relative">
+            <div class="absolute inset-0 bg-green-500 blur-3xl opacity-20 rounded-full animate-pulse"></div>
+            <i data-lucide="play-circle" class="w-24 h-24 text-green-400 relative z-10"></i>
+        </div>
+        <h2 class="text-5xl font-bold mb-6">Live Demonstration</h2>
+        
+        <div class="grid grid-cols-3 gap-6 max-w-4xl w-full mb-12">
+            <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6 text-center">
+                <i data-lucide="mic" class="w-8 h-8 text-blue-400 mx-auto mb-3"></i>
+                <h3 class="font-semibold mb-2">1. Wake Word</h3>
+                <p class="text-sm text-gray-400">"Hallo Michaela"</p>
+            </div>
+            <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6 text-center">
+                <i data-lucide="message-circle" class="w-8 h-8 text-purple-400 mx-auto mb-3"></i>
+                <h3 class="font-semibold mb-2">2. Interaktion</h3>
+                <p class="text-sm text-gray-400">Natürliche Konversation</p>
+            </div>
+            <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6 text-center">
+                <i data-lucide="sleep" class="w-8 h-8 text-red-400 mx-auto mb-3"></i>
+                <h3 class="font-semibold mb-2">3. Sleep</h3>
+                <p class="text-sm text-gray-400">"Danke Michaela"</p>
+            </div>
+        </div>
+
+        <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-6 max-w-2xl">
+            <h4 class="font-semibold text-blue-400 mb-3">Demo-Szenarien</h4>
+            <div class="grid grid-cols-2 gap-4 text-left text-sm">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="check" class="w-4 h-4 text-green-400"></i>
+                    <span>Wetterabfrage mit Kontext</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i data-lucide="check" class="w-4 h-4 text-green-400"></i>
+                    <span>Code-Erklärung (Python)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i data-lucide="check" class="w-4 h-4 text-green-400"></i>
+                    <span>Mehrfache Unterbrechungen</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i data-lucide="check" class="w-4 h-4 text-green-400"></i>
+                    <span>TTS-Stop während Sprache</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 text-gray-500 text-sm">
+            <i data-lucide="terminal" class="inline w-4 h-4 mr-2"></i>
+            Terminal-Befehl: <code class="bg-gray-800 px-2 py-1 rounded">python3 michaela.py</code>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 9: Technical Specs -->
+<div class="slide" id="slide-8">
+    <h2 class="text-4xl font-bold mb-6 flex items-center gap-3">
+        <i data-lucide="settings" class="text-gray-400"></i>
+        Technische Spezifikationen
+    </h2>
+
+    <div class="grid grid-cols-2 gap-8 flex-1">
+        <div class="space-y-4">
+            <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <h3 class="text-lg font-semibold mb-4 text-blue-400">Hardware-Anforderungen</h3>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center p-3 bg-black/30 rounded">
+                        <span>CPU</span>
+                        <span class="mono text-sm text-green-400">x86_64 / ARM64</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 bg-black/30 rounded">
+                        <span>RAM</span>
+                        <span class="mono text-sm text-green-400">~150MB (Vosk Model)</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 bg-black/30 rounded">
+                        <span>Storage</span>
+                        <span class="mono text-sm text-green-400">~50MB (small model)</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 bg-black/30 rounded">
+                        <span>Internet</span>
+                        <span class="mono text-sm text-yellow-400">Nur für Gemini/TTS</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <h3 class="text-lg font-semibold mb-4 text-purple-400">Performance</h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex items-center gap-2">
+                        <div class="w-32 bg-gray-700 rounded-full h-2">
+                            <div class="bg-green-400 h-2 rounded-full" style="width: 95%"></div>
+                        </div>
+                        <span>STT Latenz: &lt;200ms</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-32 bg-gray-700 rounded-full h-2">
+                            <div class="bg-blue-400 h-2 rounded-full" style="width: 80%"></div>
+                        </div>
+                        <span>LLM Antwort: ~1-2s</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-32 bg-gray-700 rounded-full h-2">
+                            <div class="bg-purple-400 h-2 rounded-full" style="width: 90%"></div>
+                        </div>
+                        <span>TTS Generation: &lt;1s</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="terminal flex flex-col">
+            <div class="terminal-header">
+                <span class="text-xs text-gray-400">requirements.txt</span>
+            </div>
+            <div class="p-4 overflow-auto flex-1 text-sm">
+<pre><span class="code-comment"># Core</span>
+vosk>=0.3.45
+sounddevice>=0.4.6
+numpy>=1.24.0
+
+<span class="code-comment"># AI</span>
+google-genai>=0.3.0
+
+<span class="code-comment"># TTS (optional)</span>
+edge-tts>=6.1.0      <span class="code-comment"># Online Neural</span>
+pyttsx3>=2.90        <span class="code-comment"># Offline Fallback</span>
+
+<span class="code-comment"># System</span>
+ffmpeg               <span class="code-comment"># MP3 Playback</span>
+portaudio            <span class="code-comment"># sounddevice backend</span></pre>
+            </div>
+            
+            <div class="mt-4 bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <h4 class="font-semibold mb-2 text-sm">Konfigurations-Highlights</h4>
+                <div class="grid grid-cols-2 gap-2 text-xs mono">
+                    <div class="text-gray-400">SAMPLE_RATE:</div>
+                    <div class="text-green-400">16000 Hz</div>
+                    <div class="text-gray-400">BLOCKSIZE:</div>
+                    <div class="text-green-400">4000 frames</div>
+                    <div class="text-gray-400">GEMINI_MODEL:</div>
+                    <div class="text-green-400">gemini-2.5-flash</div>
+                    <div class="text-gray-400">MAX_TOKENS:</div>
+                    <div class="text-green-400">800</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Slide 10: Fazit -->
+<div class="slide" id="slide-9">
+    <div class="flex-1 flex flex-col justify-center items-center text-center max-w-4xl mx-auto">
+        <h2 class="text-5xl font-bold mb-8">Fazit & Ausblick</h2>
+        
+        <div class="grid grid-cols-2 gap-6 w-full mb-8">
+            <div class="bg-green-500/10 border border-green-500/30 rounded-xl p-6 text-left">
+                <h3 class="text-lg font-semibold text-green-400 mb-3 flex items-center gap-2">
+                    <i data-lucide="check-circle"></i> Erreicht
+                </h3>
+                <ul class="space-y-2 text-sm text-gray-300">
+                    <li>• Vollständig lokale Wake-Word Detection</li>
+                    <li>• Thread-sichere State-Machine</li>
+                    <li>• Robustes Error-Handling mit Retry</li>
+                    <li>• Flexible TTS-Pipeline mit Fallbacks</li>
+                    <li>• "Show-tauglicher" Charakter</li>
+                </ul>
+            </div>
+
+            <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-6 text-left">
+                <h3 class="text-lg font-semibold text-blue-400 mb-3 flex items-center gap-2">
+                    <i data-lucide="rocket"></i> Roadmap
+                </h3>
+                <ul class="space-y-2 text-sm text-gray-300">
+                    <li>• Integration lokaler LLMs (Llama.cpp)</li>
+                    <li>• Skill-System für Home-Automation</li>
+                    <li>• Wake-Word Training (custom)</li>
+                    <li>• Web-Interface für Konfiguration</li>
+                    <li>• Docker-Containerisierung</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 w-full mb-8">
+            <h3 class="text-lg font-semibold mb-4">Projekt-Highlights</h3>
+            <div class="flex justify-around text-center">
+                <div>
+                    <div class="text-3xl font-bold text-blue-400">3</div>
+                    <div class="text-sm text-gray-400">Worker Threads</div>
+                </div>
+                <div>
+                    <div class="text-3xl font-bold text-purple-400">~1000</div>
+                    <div class="text-sm text-gray-400">Zeilen Python</div>
+                </div>
+                <div>
+                    <div class="text-3xl font-bold text-green-400">0</div>
+                    <div class="text-sm text-gray-400">Blocking Calls</div>
+                </div>
+                <div>
+                    <div class="text-3xl font-bold text-yellow-400">∞</div>
+                    <div class="text-sm text-gray-400">Sarkasmus-Level</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-gray-500">
+            <p class="mb-2">Vielen Dank für Ihre Aufmerksamkeit!</p>
+            <p class="text-sm">Fragen? → "Hallo Michaela"</p>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation Hints -->
+<div class="nav-hint">
+    <span><span class="key">←</span> Zurück</span>
+    <span><span class="key">→</span> Weiter</span>
+    <span><span class="key">ESC</span> Übersicht</span>
+</div>
+
+<script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // Slide Management
+    let currentSlide = 0;
+    const totalSlides = 10;
+    const slides = document.querySelectorAll('.slide');
+    const progressBar = document.getElementById('progressBar');
+
+    function updateSlides() {
+        slides.forEach((slide, index) => {
+            slide.classList.remove('active', 'prev');
+            if (index === currentSlide) {
+                slide.classList.add('active');
+            } else if (index < currentSlide) {
+                slide.classList.add('prev');
+            }
+        });
+        
+        // Update progress bar
+        const progress = ((currentSlide + 1) / totalSlides) * 100;
+        progressBar.style.width = progress + '%';
+        
+        // Update state visualization on slide 3
+        if (currentSlide === 2) {
+            animateStateMachine();
+        }
+    }
+
+    function nextSlide() {
+        if (currentSlide < totalSlides - 1) {
+            currentSlide++;
+            updateSlides();
+        }
+    }
+
+    function prevSlide() {
+        if (currentSlide > 0) {
+            currentSlide--;
+            updateSlides();
+        }
+    }
+
+    // Keyboard Navigation
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === ' ') {
+            e.preventDefault();
+            nextSlide();
+        } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            prevSlide();
+        } else if (e.key === 'Escape') {
+            // Could add overview mode here
+        }
+    });
+
+    // State Machine Animation
+    function animateStateMachine() {
+        const states = [
+            { text: 'WAITING (Wake Word)', class: 'status-waiting', color: 'bg-yellow-400' },
+            { text: 'ACTIVE (Listening)', class: 'status-active', color: 'bg-green-400' },
+            { text: 'PROCESSING (Gemini)', class: 'status-active', color: 'bg-blue-400' },
+            { text: 'SPEAKING (TTS)', class: 'status-active', color: 'bg-purple-400' },
+            { text: 'WAITING (Wake Word)', class: 'status-waiting', color: 'bg-yellow-400' }
+        ];
+        
+        let step = 0;
+        const stateVisual = document.getElementById('state-visual');
+        const sessionId = document.getElementById('session-id');
+        const activeState = document.getElementById('active-state');
+        
+        if (!stateVisual) return;
+        
+        const interval = setInterval(() => {
+            if (currentSlide !== 2) {
+                clearInterval(interval);
+                return;
+            }
+            
+            const state = states[step % states.length];
+            stateVisual.innerHTML = `
+                <span class="status-badge ${state.class}">
+                    <span class="w-2 h-2 ${state.color} rounded-full animate-pulse"></span>
+                    ${state.text}
+                </span>
+            `;
+            
+            if (state.text.includes('ACTIVE')) {
+                sessionId.textContent = '1';
+                activeState.textContent = 'True';
+            } else {
+                activeState.textContent = 'False';
+            }
+            
+            step++;
+        }, 1500);
+    }
+
+    // Initial update
+    updateSlides();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Masterprojekt Sprachverarbeitung – Hybrid-Sprachassistent (Vosk + Gemini + TTS)</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    :root{
+      --bg:#050a14;
+      --card:rgba(15,26,46,0.6);
+      --border:rgba(148,163,184,0.2);
+      --muted:#94a3b8;
+      --text:#f8fafc;
+      --accent:#38bdf8;
+      --accent2:#22c55e;
+      --warn:#fbbf24;
+      --danger:#f87171;
+      --mono:"JetBrains Mono", ui-monospace, monospace;
+      --sans:"Inter", system-ui, sans-serif;
+    }
+    
+    * {
+      box-sizing: border-box;
+    }
+    
+    body{ 
+      font-family:var(--sans); 
+      background:var(--bg); 
+      color:var(--text); 
+      overflow:hidden;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Animated Background */
+    .bg-animated {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background: 
+        radial-gradient(ellipse at 20% 80%, rgba(56,189,248,0.15) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(34,197,94,0.1) 0%, transparent 50%),
+        radial-gradient(ellipse at 40% 40%, rgba(251,191,36,0.05) 0%, transparent 50%);
+      animation: bgPulse 8s ease-in-out infinite;
+    }
+
+    @keyframes bgPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.05); }
+    }
+
+    /* Glass Grid Overlay */
+    .bg-grid{
+      position:fixed; inset:0; z-index:-1;
+      background-image:
+        linear-gradient(rgba(56,189,248,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56,189,248,0.03) 1px, transparent 1px);
+      background-size: 50px 50px;
+      mask-image: radial-gradient(circle at center, black 40%, transparent 80%);
+    }
+
+    /* Floating Particles */
+    .particles {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: rgba(56,189,248,0.4);
+      border-radius: 50%;
+      animation: float 15s infinite;
+      box-shadow: 0 0 10px rgba(56,189,248,0.6);
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+    }
+
+    /* Glassmorphism Cards */
+    .glass-card {
+      background: rgba(15,26,46,0.4);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(148,163,184,0.15);
+      border-radius: 24px;
+      box-shadow: 
+        0 8px 32px rgba(0,0,0,0.3),
+        inset 0 1px 0 rgba(255,255,255,0.05);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .glass-card:hover {
+      transform: translateY(-4px) scale(1.01);
+      box-shadow: 
+        0 20px 60px rgba(0,0,0,0.4),
+        0 0 40px rgba(56,189,248,0.1),
+        inset 0 1px 0 rgba(255,255,255,0.1);
+      border-color: rgba(56,189,248,0.3);
+    }
+
+    /* 3D Perspective Container */
+    .perspective-container {
+      perspective: 1000px;
+    }
+
+    /* Slide System with 3D Effects */
+    .slide{
+      position:absolute; inset:0;
+      padding:4rem;
+      opacity:0; 
+      transform: translateZ(-100px) rotateY(5deg) scale(0.9);
+      transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events:none;
+      display:flex; flex-direction:column;
+      box-sizing:border-box;
+      filter: blur(10px);
+    }
+    
+    .slide.active{ 
+      opacity:1; 
+      transform: translateZ(0) rotateY(0) scale(1);
+      pointer-events:auto;
+      filter: blur(0);
+    }
+    
+    .slide.prev{ 
+      opacity:0; 
+      transform: translateZ(-200px) rotateY(-5deg) scale(0.8) translateX(-100%);
+      filter: blur(20px);
+    }
+
+    /* Top bar with glass effect */
+    .topbar{
+      position:fixed; left:0; right:0; top:0;
+      padding:16px 32px;
+      display:flex; align-items:center; justify-content:space-between;
+      background: rgba(11,18,32,0.7);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(148,163,184,0.1);
+      z-index:50;
+      transition: all 0.3s ease;
+    }
+
+    .progress{
+      height:4px; width:300px;
+      background: rgba(148,163,184,0.1);
+      border-radius:999px; overflow:hidden;
+      position: relative;
+    }
+    
+    .progress > div{
+      height:100%;
+      width:0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      box-shadow: 0 0 20px var(--accent);
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .progress > div::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+      animation: shimmer 2s infinite;
+    }
+
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* Typography Enhancements */
+    h1{ 
+      letter-spacing:-0.03em; 
+      background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    }
+    
+    h2{ 
+      letter-spacing:-0.02em;
+      position: relative;
+      display: inline-block;
+    }
+    
+    h2::after {
+      content: '';
+      position: absolute;
+      bottom: -8px;
+      left: 0;
+      width: 60px;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 2px;
+      box-shadow: 0 0 20px var(--accent);
+    }
+
+    .muted{ color:var(--muted); }
+
+    /* Pills with glow */
+    .pill{
+      display:inline-flex; align-items:center; gap:.5rem;
+      padding:.5rem 1rem; border-radius:999px;
+      border:1px solid rgba(148,163,184,0.2);
+      background: rgba(15,26,46,0.5);
+      font-size:.85rem;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .pill::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+      transform: translateX(-100%);
+      transition: transform 0.5s;
+    }
+    
+    .pill:hover::before {
+      transform: translateX(100%);
+    }
+    
+    .pill:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 20px rgba(56,189,248,0.3);
+      transform: translateY(-2px);
+    }
+
+    /* KPI Cards with gradient borders */
+    .kpi{
+      border-radius:16px;
+      border:1px solid rgba(148,163,184,0.15);
+      background: rgba(15,26,46,0.4);
+      padding:20px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    
+    .kpi::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    
+    .kpi:hover::before {
+      opacity: 1;
+    }
+    
+    .kpi:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+
+    .hr{ 
+      height:1px; 
+      background: linear-gradient(90deg, transparent, rgba(148,163,184,0.3), transparent);
+      margin: 1.5rem 0;
+    }
+
+    /* Spec rows with hover effect */
+    .specrow{
+      display:flex; justify-content:space-between; gap:16px;
+      padding:12px 16px;
+      border-radius:12px;
+      background: rgba(2,6,23,0.4);
+      border:1px solid rgba(148,163,184,0.1);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .specrow:hover {
+      background: rgba(56,189,248,0.05);
+      border-color: rgba(56,189,248,0.2);
+      transform: translateX(4px);
+    }
+
+    /* Navigation with glass effect */
+    .navhint{
+      position:fixed; bottom:24px; right:32px;
+      display:flex; gap:16px; align-items:center;
+      color: rgba(226,232,240,0.6);
+      font-size:.9rem;
+      user-select:none;
+      z-index:60;
+      padding: 12px 20px;
+      background: rgba(15,26,46,0.6);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      border: 1px solid rgba(148,163,184,0.1);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    
+    .key{
+      font-family:var(--mono);
+      border:1px solid rgba(148,163,184,0.2);
+      background: rgba(56,189,248,0.1);
+      color: var(--accent);
+      padding:.25rem .6rem;
+      border-radius:6px;
+      font-weight: 700;
+      box-shadow: 0 0 10px rgba(56,189,248,0.2);
+      transition: all 0.2s;
+    }
+    
+    .key:hover {
+      background: rgba(56,189,248,0.2);
+      box-shadow: 0 0 20px rgba(56,189,248,0.4);
+      transform: translateY(-2px);
+    }
+
+    /* List items with animation */
+    li {
+      transition: all 0.3s ease;
+    }
+    
+    li:hover {
+      transform: translateX(8px);
+      color: var(--text);
+    }
+
+    /* Icon containers with glow */
+    .icon-glow {
+      position: relative;
+      display: inline-flex;
+      padding: 8px;
+      border-radius: 12px;
+      background: rgba(56,189,248,0.1);
+      border: 1px solid rgba(56,189,248,0.2);
+    }
+    
+    .icon-glow::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), transparent);
+      opacity: 0;
+      z-index: -1;
+      transition: opacity 0.3s;
+      filter: blur(8px);
+    }
+    
+    .icon-glow:hover::before {
+      opacity: 0.6;
+    }
+
+    /* Mono text with glow */
+    .mono { 
+      font-family:var(--mono); 
+      color: var(--accent);
+      text-shadow: 0 0 10px rgba(56,189,248,0.3);
+    }
+
+    /* Slide number indicator */
+    .slide-indicator {
+      position: fixed;
+      bottom: 24px;
+      left: 32px;
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      color: var(--muted);
+      z-index: 60;
+      background: rgba(15,26,46,0.6);
+      backdrop-filter: blur(10px);
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid rgba(148,163,184,0.1);
+    }
+
+    /* Content reveal animation */
+    .reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .slide.active .reveal {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    .slide.active .reveal:nth-child(1) { transition-delay: 0.1s; }
+    .slide.active .reveal:nth-child(2) { transition-delay: 0.2s; }
+    .slide.active .reveal:nth-child(3) { transition-delay: 0.3s; }
+    .slide.active .reveal:nth-child(4) { transition-delay: 0.4s; }
+    .slide.active .reveal:nth-child(5) { transition-delay: 0.5s; }
+
+    /* Print styles */
+    @media print{
+      body{ overflow:visible; background: white; }
+      .slide{ 
+        position:relative; 
+        opacity:1 !important; 
+        transform:none !important; 
+        page-break-after:always;
+        filter: none;
+      }
+      .topbar, .navhint, .slide-indicator, .bg-animated, .bg-grid, .particles { display:none; }
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .slide { padding: 2rem; }
+      h1 { font-size: 2.5rem !important; }
+      h2 { font-size: 1.8rem !important; }
+      .navhint { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="bg-animated"></div>
+<div class="bg-grid"></div>
+<div class="particles" id="particles"></div>
+
+<div class="topbar">
+  <div class="flex items-center gap-4">
+    <span class="pill">
+      <i data-lucide="graduation-cap" class="w-4 h-4" style="color:var(--accent)"></i>
+      Masterprojekt · Sprachverarbeitung
+    </span>
+    <span class="hidden md:inline text-sm muted">Hybrid-Sprachassistent (Vosk + Gemini + TTS)</span>
+  </div>
+  <div class="progress"><div id="progressFill"></div></div>
+</div>
+
+<!-- =============== SLIDE 1: TITLE =============== -->
+<section class="slide active" id="slide-0">
+  <div class="flex-1 flex flex-col justify-center perspective-container">
+    <div class="max-w-5xl">
+      <div class="reveal flex items-start justify-between gap-8 flex-wrap">
+        <div>
+          <h1 class="text-7xl font-extrabold leading-[1.05] mb-6">
+            Hybrid-Sprachassistent
+          </h1>
+          <p class="mt-4 text-2xl muted font-light">
+            Lokale Spracherkennung (Vosk) · Cloud-basierte Antwortgenerierung (Gemini) · TTS (Edge-TTS oder pyttsx3)
+          </p>
+
+          <div class="mt-8 flex flex-wrap gap-3">
+            <span class="pill"><i data-lucide="mic" class="w-4 h-4" style="color:var(--accent2)"></i> Vosk (lokal)</span>
+            <span class="pill"><i data-lucide="brain" class="w-4 h-4" style="color:var(--accent)"></i> Gemini (Cloud)</span>
+            <span class="pill"><i data-lucide="volume-2" class="w-4 h-4" style="color:var(--warn)"></i> TTS optional (Cloud/Local)</span>
+            <span class="pill"><i data-lucide="shield" class="w-4 h-4" style="color:#a78bfa"></i> Thread-sichere Session</span>
+          </div>
+        </div>
+
+        <div class="glass-card p-8 min-w-[340px] grow md:grow-0 reveal">
+          <div class="text-sm muted uppercase tracking-wider mb-2">Masterprojekt</div>
+          <div class="text-xs muted mb-4">Hochschule Niederrhein</div>
+          <div class="mt-4 text-2xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">Tobias Dome</div>
+          <div class="mt-2 text-sm muted">Fach: Sprachverarbeitung</div>
+          <div class="hr"></div>
+          <div class="text-sm space-y-3">
+            <div class="flex items-center gap-3">
+              <div class="icon-glow">
+                <i data-lucide="user" class="w-4 h-4" style="color:var(--accent)"></i>
+              </div>
+              <span>Betreuung: Prof. Dr. Gref</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="icon-glow">
+                <i data-lucide="calendar" class="w-4 h-4" style="color:var(--accent)"></i>
+              </div>
+              <span>Stand: Implementationsdemo</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-10 glass-card p-6 reveal border-l-4 border-l-sky-400">
+        <div class="flex items-start gap-4">
+          <div class="icon-glow mt-1">
+            <i data-lucide="info" class="w-5 h-5" style="color:var(--accent)"></i>
+          </div>
+          <div class="text-sm muted leading-relaxed">
+            Hinweis zur wissenschaftlichen Korrektheit: Diese Präsentation beschreibt ausschließlich Funktionen, die im bereitgestellten Python-Code implementiert sind.
+            Konkrete Latenz-/RAM-/Speicherzahlen werden bewusst nicht als Fakten angegeben, da sie im Code nicht gemessen werden.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 2: AGENDA =============== -->
+<section class="slide" id="slide-1">
+  <div class="reveal">
+    <h2 class="text-5xl font-bold mb-2">Agenda</h2>
+    <p class="mt-2 muted text-lg">Struktur einer Masterprojekt-Präsentation (Sprachverarbeitung)</p>
+  </div>
+
+  <div class="mt-10 grid grid-cols-1 md:grid-cols-2 gap-8 flex-1">
+    <div class="glass-card p-8 reveal">
+      <div class="font-semibold mb-6 flex items-center gap-3 text-xl">
+        <div class="icon-glow">
+          <i data-lucide="list" class="w-5 h-5" style="color:var(--accent)"></i>
+        </div>
+        Inhalt
+      </div>
+      <ol class="space-y-4 text-[16px] leading-relaxed">
+        <li class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-all cursor-default">
+          <span class="mono text-sky-400 font-bold">01.</span> 
+          <span>Motivation & Problemraum</span>
+        </li>
+        <li class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-all cursor-default">
+          <span class="mono text-sky-400 font-bold">02.</span> 
+          <span>Zielsetzung & Forschungsfragen</span>
+        </li>
+        <li class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-all cursor-default">
+          <span class="mono text-sky-400 font-bold">03.</span> 
+          <span>Systemdesign (Pipeline, Architektur, State)</span>
+        </li>
+        <li class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-all cursor-default">
+          <span class="mono text-sky-400 font-bold">04.</span> 
+          <span>Implementationsdetails (STT, LLM, TTS, Robustheit)</span>
+        </li>
+        <li class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-all cursor-default">
+          <span class="mono text-sky-400 font-bold">05.</span> 
+          <span>Grenzen & geplanter Evaluationsrahmen</span>
+        </li>
+        <li class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-all cursor-default">
+          <span class="mono text-sky-400 font-bold">06.</span> 
+          <span>Fazit & Ausblick</span>
+        </li>
+      </ol>
+    </div>
+
+    <div class="glass-card p-8 reveal">
+      <div class="font-semibold mb-6 flex items-center gap-3 text-xl">
+        <div class="icon-glow">
+          <i data-lucide="file-code" class="w-5 h-5" style="color:var(--accent2)"></i>
+        </div>
+        Artefakt
+      </div>
+      <div class="space-y-4 text-[16px] leading-relaxed">
+        <div class="specrow">
+          <span class="muted">Implementationsform</span>
+          <span class="mono">Python Script</span>
+        </div>
+        <div class="specrow">
+          <span class="muted">STT / Wake-Speech</span>
+          <span class="mono">Vosk (de)</span>
+        </div>
+        <div class="specrow">
+          <span class="muted">Antwortgenerierung</span>
+          <span class="mono">Gemini Chat (Cloud)</span>
+        </div>
+        <div class="specrow">
+          <span class="muted">TTS</span>
+          <span class="mono">edge-tts / pyttsx3</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 3: MOTIVATION =============== -->
+<section class="slide" id="slide-2">
+  <div class="reveal">
+    <h2 class="text-5xl font-bold mb-2">Motivation & Problemraum</h2>
+    <p class="mt-2 muted text-lg">Warum ein hybrider Ansatz für Sprachassistenten?</p>
+  </div>
+
+  <div class="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
+    <div class="glass-card p-8 reveal hover:border-sky-400/30">
+      <div class="flex items-center gap-3 font-semibold text-xl mb-4">
+        <div class="icon-glow">
+          <i data-lucide="cpu" class="w-6 h-6" style="color:var(--accent2)"></i>
+        </div>
+        Lokale Signal-/Sprachverarbeitung
+      </div>
+      <p class="text-base leading-relaxed muted">
+        Wake-Phrase-Erkennung und Diktat (STT) können lokal erfolgen. Das reduziert die Notwendigkeit,
+        Roh-Audio in die Cloud zu senden.
+      </p>
+    </div>
+
+    <div class="glass-card p-8 reveal hover:border-sky-400/30">
+      <div class="flex items-center gap-3 font-semibold text-xl mb-4">
+        <div class="icon-glow">
+          <i data-lucide="cloud" class="w-6 h-6" style="color:var(--accent)"></i>
+        </div>
+        Cloud-LLM als Wissens- und Dialogkomponente
+      </div>
+      <p class="text-base leading-relaxed muted">
+        Für inhaltlich flexible Antworten wird ein Cloud-LLM genutzt. Im Code erfolgt die Interaktion über eine Chat-Session
+        (Gemini) mit System-Instructions.
+      </p>
+    </div>
+
+    <div class="glass-card p-8 reveal hover:border-sky-400/30">
+      <div class="flex items-center gap-3 font-semibold text-xl mb-4">
+        <div class="icon-glow">
+          <i data-lucide="shield" class="w-6 h-6" style="color:#a78bfa"></i>
+        </div>
+        Systemrobustheit im Streaming-Betrieb
+      </div>
+      <p class="text-base leading-relaxed muted">
+        Streaming-Audio, konkurrierende Threads und Ausfallszenarien (Netzwerk/Quota) erfordern saubere
+        Zustands- und Fehlerbehandlung.
+      </p>
+    </div>
+
+    <div class="glass-card p-8 lg:col-span-3 reveal border-l-4 border-l-green-400">
+      <div class="flex items-start gap-4">
+        <div class="icon-glow mt-1">
+          <i data-lucide="check-circle" class="w-6 h-6" style="color:var(--accent2)"></i>
+        </div>
+        <div>
+          <div class="font-semibold text-lg mb-3">Projektfokus (aus dem implementierten System ableitbar)</div>
+          <ul class="grid grid-cols-1 md:grid-cols-2 gap-3 text-base muted">
+            <li class="flex items-center gap-2"><span class="text-sky-400">▸</span> Wake/Sleep/Exit per fest definierter Phrasen (de)</li>
+            <li class="flex items-center gap-2"><span class="text-sky-400">▸</span> Parallelisierung: Audio-Loop + LLM-Worker + TTS-Worker</li>
+            <li class="flex items-center gap-2"><span class="text-sky-400">▸</span> Session-Invalidierung via <span class="mono">session_id</span> zur Konsistenz</li>
+            <li class="flex items-center gap-2"><span class="text-sky-400">▸</span> Retry/Backoff-Strategie bei transienten API-Fehlern</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 4: ZIELE & FORSCHUNGSFRAGEN =============== -->
+<section class="slide" id="slide-3">
+  <div class="reveal">
+    <h2 class="text-5xl font-bold mb-2">Zielsetzung & Forschungsfragen</h2>
+    <p class="mt-2 muted text-lg">Formulierung im akademischen Stil (ohne unbelegte Leistungsversprechen)</p>
+  </div>
+
+  <div class="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
+    <div class="glass-card p-8 reveal">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="target" class="w-6 h-6" style="color:var(--accent)"></i>
+        </div>
+        Zielsetzung
+      </div>
+      <p class="text-base leading-relaxed muted mb-6">
+        Entwicklung eines prototypischen Sprachassistenten, der lokale Spracherkennung (Vosk) mit einer cloudbasierten
+        Dialog-/Antwortkomponente (Gemini) kombiniert und eine optionale Sprachausgabe (TTS) bereitstellt.
+      </p>
+      <div class="hr"></div>
+      <div class="text-base">
+        <div class="font-semibold mb-3 text-amber-400 flex items-center gap-2">
+          <i data-lucide="alert-circle" class="w-4 h-4"></i>
+          Nicht-Ziele (transparent)
+        </div>
+        <ul class="space-y-2 muted">
+          <li class="flex items-start gap-2"><span class="text-red-400">×</span> Kein vollständig offline arbeitendes LLM im aktuellen Code</li>
+          <li class="flex items-start gap-2"><span class="text-red-400">×</span> Keine integrierte automatische Latenz-/Qualitätsmessung im aktuellen Code</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="glass-card p-8 reveal">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="help-circle" class="w-6 h-6" style="color:var(--accent2)"></i>
+        </div>
+        Forschungsfragen (projektbezogen)
+      </div>
+      <ul class="space-y-4 text-base leading-relaxed">
+        <li class="flex items-start gap-4 p-4 rounded-xl bg-white/5 border border-white/10 hover:border-sky-400/30 transition-all">
+          <span class="pill shrink-0">F1</span>
+          <span class="muted">Wie kann Wake-Phrase-Erkennung und Diktat lokal realisiert werden, ohne Cloud-STT zu benötigen?</span>
+        </li>
+        <li class="flex items-start gap-4 p-4 rounded-xl bg-white/5 border border-white/10 hover:border-sky-400/30 transition-all">
+          <span class="pill shrink-0">F2</span>
+          <span class="muted">Welche Architektur entkoppelt Audioaufnahme, LLM-Aufruf und TTS robust (Queues/Threads)?</span>
+        </li>
+        <li class="flex items-start gap-4 p-4 rounded-xl bg-white/5 border border-white/10 hover:border-sky-400/30 transition-all">
+          <span class="pill shrink-0">F3</span>
+          <span class="muted">Wie lassen sich Session-Konsistenz und Fehlerszenarien (Retry/Quota) in einer laufenden Sprachinteraktion handhaben?</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="glass-card p-6 lg:col-span-2 reveal border-l-4 border-l-amber-400">
+      <div class="flex items-start gap-4">
+        <div class="icon-glow mt-1">
+          <i data-lucide="alert-triangle" class="w-5 h-5" style="color:var(--warn)"></i>
+        </div>
+        <div class="text-sm muted">
+          Hinweis: Fragen entsprechen dem implementiertem Stand (sind projektbezogen und haben keine Aussage über
+          „beste" Performance [ms/s], da es sich um ein Individualprojekt handelt).
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 5: PIPELINE OVERVIEW =============== -->
+<section class="slide" id="slide-4">
+  <div class="reveal">
+    <h2 class="text-5xl font-bold mb-2">Pipeline-Übersicht</h2>
+    <p class="mt-2 muted text-lg">Signalfluss vom Mikrofon bis zur Sprachausgabe (entspricht dem Codepfad)</p>
+  </div>
+
+  <div class="mt-8 grid grid-cols-1 lg:grid-cols-5 gap-4 flex-1 items-center">
+    <div class="glass-card p-6 reveal text-center group">
+      <div class="flex flex-col items-center gap-3 font-semibold">
+        <div class="icon-glow group-hover:scale-110 transition-transform">
+          <i data-lucide="mic" class="w-8 h-8" style="color:var(--accent2)"></i>
+        </div>
+        <span>Audio</span>
+      </div>
+      <p class="mt-3 text-sm muted">RawInputStream → Bytes → <span class="mono">audio_q</span></p>
+      <div class="mt-3 text-xs text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity">▶ Input</div>
+    </div>
+
+    <div class="flex justify-center reveal">
+      <i data-lucide="arrow-right" class="w-8 h-8 text-slate-600 hidden lg:block"></i>
+      <i data-lucide="arrow-down" class="w-8 h-8 text-slate-600 lg:hidden"></i>
+    </div>
+
+    <div class="glass-card p-6 reveal text-center group">
+      <div class="flex flex-col items-center gap-3 font-semibold">
+        <div class="icon-glow group-hover:scale-110 transition-transform">
+          <i data-lucide="ear" class="w-8 h-8" style="color:var(--accent2)"></i>
+        </div>
+        <span>Wake/Sleep</span>
+      </div>
+      <p class="mt-3 text-sm muted">Vosk-Recognizer mit Grammar (Wake/Sleep/Exit)</p>
+    </div>
+
+    <div class="flex justify-center reveal">
+      <i data-lucide="arrow-right" class="w-8 h-8 text-slate-600 hidden lg:block"></i>
+      <i data-lucide="arrow-down" class="w-8 h-8 text-slate-600 lg:hidden"></i>
+    </div>
+
+    <div class="glass-card p-6 reveal text-center group">
+      <div class="flex flex-col items-center gap-3 font-semibold">
+        <div class="icon-glow group-hover:scale-110 transition-transform">
+          <i data-lucide="keyboard" class="w-8 h-8" style="color:var(--accent2)"></i>
+        </div>
+        <span>Diktat</span>
+      </div>
+      <p class="mt-3 text-sm muted">Vosk-Diktat → Text → <span class="mono">text_q</span></p>
+    </div>
+
+    <div class="flex justify-center reveal">
+      <i data-lucide="arrow-right" class="w-8 h-8 text-slate-600 hidden lg:block"></i>
+      <i data-lucide="arrow-down" class="w-8 h-8 text-slate-600 lg:hidden"></i>
+    </div>
+
+    <div class="glass-card p-6 reveal text-center group">
+      <div class="flex flex-col items-center gap-3 font-semibold">
+        <div class="icon-glow group-hover:scale-110 transition-transform">
+          <i data-lucide="brain" class="w-8 h-8" style="color:var(--accent)"></i>
+        </div>
+        <span>LLM</span>
+      </div>
+      <p class="mt-3 text-sm muted">Gemini Chat-Session (Cloud) → Antworttext</p>
+    </div>
+
+    <div class="flex justify-center reveal">
+      <i data-lucide="arrow-right" class="w-8 h-8 text-slate-600 hidden lg:block"></i>
+      <i data-lucide="arrow-down" class="w-8 h-8 text-slate-600 lg:hidden"></i>
+    </div>
+
+    <div class="glass-card p-6 reveal text-center group">
+      <div class="flex flex-col items-center gap-3 font-semibold">
+        <div class="icon-glow group-hover:scale-110 transition-transform">
+          <i data-lucide="volume-2" class="w-8 h-8" style="color:var(--warn)"></i>
+        </div>
+        <span>TTS</span>
+      </div>
+      <p class="mt-3 text-sm muted">Antwort → <span class="mono">tts_q</span> → edge-tts/pyttsx3</p>
+      <div class="mt-3 text-xs text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">▶ Output</div>
+    </div>
+
+    <div class="glass-card p-8 lg:col-span-5 mt-4 reveal">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="kpi text-center">
+          <div class="text-xs muted uppercase tracking-wider mb-2">Aktivierung</div>
+          <div class="text-lg font-semibold mono text-sky-400">„hallo michaela"</div>
+        </div>
+        <div class="kpi text-center">
+          <div class="text-xs muted uppercase tracking-wider mb-2">Deaktivierung</div>
+          <div class="text-lg font-semibold mono text-green-400">„danke michaela"</div>
+        </div>
+        <div class="kpi text-center">
+          <div class="text-xs muted uppercase tracking-wider mb-2">Beenden</div>
+          <div class="text-lg font-semibold mono text-red-400">„kill switch aktivieren"</div>
+        </div>
+      </div>
+
+      <div class="mt-6 text-sm muted flex items-start gap-4 p-4 rounded-xl bg-white/5 border border-white/10">
+        <div class="icon-glow">
+          <i data-lucide="lock" class="w-5 h-5" style="color:#a78bfa"></i>
+        </div>
+        <div>
+          <strong class="text-slate-200">Datenschutz-Transparenz:</strong> Audio wird lokal verarbeitet; für die Antwortgenerierung wird der erkannte Text
+          an Gemini gesendet. Bei edge-tts kann zusätzlich Text für TTS in die Cloud gehen (optional).
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 6: ARCHITEKTUR & THREADING =============== -->
+<section class="slide" id="slide-5">
+  <div class="reveal">
+    <h2 class="text-5xl font-bold mb-2">Architektur & Parallelisierung</h2>
+    <p class="mt-2 muted text-lg">Audioaufnahme entkoppelt von LLM/TTS durch Queues und Worker-Threads</p>
+  </div>
+
+  <div class="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
+    <div class="glass-card p-8 reveal border-t-4 border-t-green-400">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="activity" class="w-6 h-6" style="color:var(--accent2)"></i>
+        </div>
+        Main Loop (Audio)
+      </div>
+      <ul class="space-y-3 text-base muted">
+        <li class="flex items-start gap-2"><span class="text-green-400">●</span> <span class="mono">sounddevice.RawInputStream</span> + Callback</li>
+        <li class="flex items-start gap-2"><span class="text-green-400">●</span> Vosk: Wake/Sleep-Recognizer + Diktat-Recognizer</li>
+        <li class="flex items-start gap-2"><span class="text-green-400">●</span> State: <span class="mono">active</span> und <span class="mono">session_id</span></li>
+      </ul>
+    </div>
+
+    <div class="glass-card p-8 reveal border-t-4 border-t-sky-400">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="brain" class="w-6 h-6" style="color:var(--accent)"></i>
+        </div>
+        Gemini Worker
+      </div>
+      <ul class="space-y-3 text-base muted">
+        <li class="flex items-start gap-2"><span class="text-sky-400">●</span> Erzeugt Chat-Session bei Wake</li>
+        <li class="flex items-start gap-2"><span class="text-sky-400">●</span> Sendet Diktat-Text → Antwort</li>
+        <li class="flex items-start gap-2"><span class="text-sky-400">●</span> Retry/Backoff bei transienten Fehlern</li>
+      </ul>
+    </div>
+
+    <div class="glass-card p-8 reveal border-t-4 border-t-amber-400">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="volume-2" class="w-6 h-6" style="color:var(--warn)"></i>
+        </div>
+        TTS Worker
+      </div>
+      <ul class="space-y-3 text-base muted">
+        <li class="flex items-start gap-2"><span class="text-amber-400">●</span> <span class="mono">edge-tts</span> (optional) oder <span class="mono">pyttsx3</span> (optional)</li>
+        <li class="flex items-start gap-2"><span class="text-amber-400">●</span> Stop-Signal (<span class="mono">__STOP__</span>) unterbricht Ausgabe</li>
+        <li class="flex items-start gap-2"><span class="text-amber-400">●</span> Blockiert STT während Ausgabe via Event (Feedback-Loop)</li>
+      </ul>
+    </div>
+
+    <div class="glass-card p-8 lg:col-span-3 reveal">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="git-merge" class="w-6 h-6" style="color:#a78bfa"></i>
+        </div>
+        Kommunikationskanäle
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-base">
+        <div class="specrow bg-gradient-to-r from-sky-500/10 to-transparent">
+          <span class="muted font-semibold">audio_q</span>
+          <span class="mono">Bytes (PCM)</span>
+        </div>
+        <div class="specrow bg-gradient-to-r from-green-500/10 to-transparent">
+          <span class="muted font-semibold">text_q</span>
+          <span class="mono">Diktat/Commands</span>
+        </div>
+        <div class="specrow bg-gradient-to-r from-amber-500/10 to-transparent">
+          <span class="muted font-semibold">tts_q</span>
+          <span class="mono">Antworttexte/Control</span>
+        </div>
+      </div>
+      <div class="mt-6 p-4 rounded-xl bg-white/5 border border-white/10 text-sm muted">
+        <i data-lucide="info" class="w-4 h-4 inline mr-2 text-sky-400"></i>
+        Wichtig: Blocking-Operationen existieren (z. B. Wiedergabe), sind aber vom Audio-Loop entkoppelt (Worker-Kontext).
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 7: STATE & SESSION CONSISTENCY =============== -->
+<section class="slide" id="slide-6">
+  <div class="reveal">
+    <h2 class="text-5xl font-bold mb-2">Zustandsmodell & Session-Konsistenz</h2>
+    <p class="mt-2 muted text-lg">Thread-sicherer State + Invalidation alter Requests (session_id)</p>
+  </div>
+
+  <div class="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
+    <div class="glass-card p-8 reveal">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="toggle-left" class="w-6 h-6" style="color:var(--accent)"></i>
+        </div>
+        Zustände (konzeptuell)
+      </div>
+      <div class="space-y-4 text-base">
+        <div class="specrow border-l-4 border-l-slate-500">
+          <span class="font-semibold text-slate-400">INACTIVE</span>
+          <span class="muted">Warte auf Wake</span>
+        </div>
+        <div class="specrow border-l-4 border-l-sky-500 bg-sky-500/5">
+          <span class="font-semibold text-sky-400">ACTIVE</span>
+          <span class="muted">Diktat + LLM/TTS</span>
+        </div>
+        <div class="specrow border-l-4 border-l-red-500">
+          <span class="font-semibold text-red-400">EXIT</span>
+          <span class="muted">Programmende</span>
+        </div>
+      </div>
+      <div class="mt-6 text-sm muted p-4 rounded-lg bg-white/5">
+        Die Präsentation unterscheidet zusätzlich "PROCESSING/SPEAKING" als Phasen innerhalb von ACTIVE (kein eigener persistenter State im Code).
+      </div>
+    </div>
+
+    <div class="glass-card p-8 reveal">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="shield" class="w-6 h-6" style="color:var(--accent2)"></i>
+        </div>
+        Mechanismen im Code
+      </div>
+      <ul class="space-y-4 text-base muted leading-relaxed">
+        <li class="flex items-start gap-3 p-3 rounded-lg bg-white/5 border border-white/5 hover:border-sky-400/30 transition-all">
+          <span class="text-green-400 font-bold">1.</span>
+          <span><span class="mono">state_lock</span> schützt <span class="mono">active</span> und <span class="mono">session_id</span></span>
+        </li>
+        <li class="flex items-start gap-3 p-3 rounded-lg bg-white/5 border border-white/5 hover:border-sky-400/30 transition-all">
+          <span class="text-green-400 font-bold">2.</span>
+          <span><span class="mono">session_id</span> wird bei Wake/Sleep inkrementiert → alte Worker-Operationen werden verworfen</span>
+        </li>
+        <li class="flex items-start gap-3 p-3 rounded-lg bg-white/5 border border-white/5 hover:border-sky-400/30 transition-all">
+          <span class="text-green-400 font-bold">3.</span>
+          <span>Cooldown und Arming Delay reduzieren Fehltrigger nach State-Wechsel</span>
+        </li>
+        <li class="flex items-start gap-3 p-3 rounded-lg bg-white/5 border border-white/5 hover:border-sky-400/30 transition-all">
+          <span class="text-green-400 font-bold">4.</span>
+          <span>Während TTS: Diktat wird unterdrückt (Event), um Feedback-Schleifen zu vermeiden</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="glass-card p-6 lg:col-span-2 reveal border-l-4 border-l-sky-400">
+      <div class="flex items-start gap-4">
+        <div class="icon-glow mt-1">
+          <i data-lucide="info" class="w-5 h-5" style="color:var(--accent)"></i>
+        </div>
+        <div class="text-sm muted">
+          Diese Folie beschreibt die Logik aus dem Code. Sie macht keine Aussage darüber, wie gut die Erkennung in der Praxis ist
+          (dafür wären Tests/Evaluation nötig).
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 8: STT DETAILS =============== -->
+<section class="slide" id="slide-7">
+  <div class="reveal">
+    <h2 class="text-5xl font-bold mb-2">Spracherkennung (STT) im Prototyp</h2>
+    <p class="mt-2 muted text-lg">Vosk-Recognizer mit Grammar (Commands) und freiem Diktat</p>
+  </div>
+
+  <div class="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
+    <div class="glass-card p-8 reveal border-l-4 border-l-green-400">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="mic-vocal" class="w-6 h-6" style="color:var(--accent2)"></i>
+        </div>
+        Command-Erkennung
+      </div>
+      <p class="text-base leading-relaxed muted mb-6">
+        Für Wake/Sleep/Exit wird ein Recognizer mit begrenzter Grammar verwendet. Dies fokussiert die Erkennung auf
+        wenige Phrasen (de) und dient der Zustandssteuerung.
+      </p>
+      <div class="space-y-3 text-base">
+        <div class="specrow bg-green-500/10 border-green-500/30">
+          <span class="muted font-semibold">Wake</span>
+          <span class="mono text-green-400">„hallo michaela"</span>
+        </div>
+        <div class="specrow bg-sky-500/10 border-sky-500/30">
+          <span class="muted font-semibold">Sleep</span>
+          <span class="mono text-sky-400">„danke michaela"</span>
+        </div>
+        <div class="specrow bg-red-500/10 border-red-500/30">
+          <span class="muted font-semibold">Exit</span>
+          <span class="mono text-red-400">„kill switch aktivieren"</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass-card p-8 reveal border-l-4 border-l-sky-400">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="type" class="w-6 h-6" style="color:var(--accent)"></i>
+        </div>
+        Freies Diktat
+      </div>
+      <p class="text-base leading-relaxed muted mb-6">
+        Im ACTIVE-Modus wird ein separater Vosk-Recognizer ohne eingeschränkte Grammar für Diktat genutzt. Erkannter Text
+        wird in <span class="mono">text_q</span> gestellt, sofern er nicht mit Command-Phrasen beginnt.
+      </p>
+      <div class="kpi bg-gradient-to-br from-sky-500/10 to-transparent">
+        <div class="text-xs muted uppercase tracking-wider mb-3">Konfiguration (aus Code)</div>
+        <div class="grid grid-cols-3 gap-4 text-sm">
+          <div class="text-center">
+            <div class="mono text-sky-400 text-lg">16000</div>
+            <div class="text-xs muted">SAMPLE_RATE</div>
+          </div>
+          <div class="text-center">
+            <div class="mono text-sky-400 text-lg">1</div>
+            <div class="text-xs muted">CHANNELS</div>
+          </div>
+          <div class="text-center">
+            <div class="mono text-sky-400 text-lg">4000</div>
+            <div class="text-xs muted">BLOCKSIZE</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 9: LLM & PROMPT =============== -->
+<section class="slide" id="slide-8">
+  <div class="reveal">
+    <h2 class="text-5xl font-bold mb-2">Dialog-/Antwortkomponente (LLM)</h2>
+    <p class="mt-2 muted text-lg">Gemini Chat mit System-Instructions (Stil/Constraints)</p>
+  </div>
+
+  <div class="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
+    <div class="glass-card p-8 reveal">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="brain" class="w-6 h-6" style="color:var(--accent)"></i>
+        </div>
+        Gemini-Integration (Cloud)
+      </div>
+      <ul class="space-y-4 text-base muted leading-relaxed">
+        <li class="flex items-start gap-3">
+          <span class="text-sky-400">▸</span>
+          <span>Erstellung einer Chat-Session bei Wake</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <span class="text-sky-400">▸</span>
+          <span>Konfiguration: max_output_tokens (im Code: 800), Temperatur und top_p</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <span class="text-sky-400">▸</span>
+          <span>Antworttext wird extrahiert und optional an TTS übergeben</span>
+        </li>
+      </ul>
+
+      <div class="mt-6 glass-card p-5 bg-sky-500/5 border-sky-500/20">
+        <div class="text-xs muted uppercase tracking-wider mb-2">Transparenz</div>
+        <div class="text-sm muted">
+          Der Prototyp sendet erkannte Nutzereingaben (Text) an Gemini. Audio wird nicht an Gemini gesendet.
+        </div>
+      </div>
+    </div>
+
+    <div class="glass-card p-8 reveal">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="message-square" class="w-6 h-6" style="color:var(--accent2)"></i>
+        </div>
+        System-Instructions (Stil)
+      </div>
+      <p class="text-base leading-relaxed muted mb-6">
+        Im Code sind Instructions definiert, die kurze Antworten, deutsche Sprache und einen „Butler"-Ton (trocken, nicht respektlos) vorgeben.
+        In dieser Präsentation wird dies als <em>Designentscheidung für die Demo</em> eingeordnet.
+      </p>
+      <div class="kpi bg-gradient-to-br from-green-500/10 to-transparent">
+        <div class="text-xs muted uppercase tracking-wider mb-3">Beispielhafte Constraints (aus Code)</div>
+        <ul class="text-sm muted space-y-2">
+          <li class="flex items-center gap-2"><span class="text-green-400">✓</span> Antworte immer auf Deutsch</li>
+          <li class="flex items-center gap-2"><span class="text-green-400">✓</span> Kurz, sachlich; max. 5 Bulletpoints</li>
+          <li class="flex items-center gap-2"><span class="text-green-400">✓</span> Erfinde nichts als Fakt; bei Unsicherheit transparent sein</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 10: TTS =============== -->
+<section class="slide" id="slide-9">
+  <div class="reveal">
+    <h2 class="text-5xl font-bold mb-2">Sprachausgabe (TTS)</h2>
+    <p class="mt-2 muted text-lg">Optionaler Baustein: edge-tts (Cloud) oder pyttsx3 (lokal)</p>
+  </div>
+
+  <div class="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
+    <div class="glass-card p-8 reveal border-t-4 border-t-amber-400">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="cloud" class="w-6 h-6" style="color:var(--warn)"></i>
+        </div>
+        edge-tts (optional)
+      </div>
+      <p class="text-base leading-relaxed muted mb-6">
+        Neural TTS über edge-tts; im Code wird versucht, WAV (riff pcm) zu erzeugen; fallback ggf. MP3.
+      </p>
+      <div class="space-y-3 text-base">
+        <div class="specrow">
+          <span class="muted">Voice</span>
+          <span class="mono text-amber-400">de-DE-KatjaNeural</span>
+        </div>
+        <div class="specrow">
+          <span class="muted">Playback</span>
+          <span class="mono">ffplay / mpg123</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass-card p-8 reveal border-t-4 border-t-green-400">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="cpu" class="w-6 h-6" style="color:var(--accent2)"></i>
+        </div>
+        pyttsx3 (optional)
+      </div>
+      <p class="text-base leading-relaxed muted mb-6">
+        Offline-TTS; im Code als Fallback vorgesehen. Satzweise Ausgabe zur Verständlichkeit.
+      </p>
+      <div class="space-y-3 text-base">
+        <div class="specrow">
+          <span class="muted">Rate</span>
+          <span class="mono text-green-400">175 WPM</span>
+        </div>
+        <div class="specrow">
+          <span class="muted">Voice</span>
+          <span class="mono">Hinweis „de"</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass-card p-8 reveal border-t-4 border-t-purple-400">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="ban" class="w-6 h-6" style="color:#a78bfa"></i>
+        </div>
+        Feedback-Loop Schutz
+      </div>
+      <p class="text-base leading-relaxed muted mb-6">
+        Während der TTS-Ausgabe wird das Diktat unterdrückt (Event). Das verhindert, dass der Assistent seine eigene Ausgabe als Eingabe erkennt.
+      </p>
+      <div class="glass-card p-4 bg-purple-500/5 border-purple-500/20">
+        <div class="text-xs muted uppercase tracking-wider mb-2">Steuersignale (Queues)</div>
+        <div class="text-sm muted"><span class="mono text-purple-400">__STOP__</span> stoppt Ausgabe und leert die TTS-Queue.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 11: ROBUSTHEIT =============== -->
+<section class="slide" id="slide-10">
+  <div class="reveal">
+    <h2 class="text-5xl font-bold mb-2">Robustheit & Fehlerbehandlung</h2>
+    <p class="mt-2 muted text-lg">Retry/Backoff, Quota-Erkennung und Queue-Management</p>
+  </div>
+
+  <div class="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
+    <div class="glass-card p-8 reveal">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="rotate-cw" class="w-6 h-6" style="color:var(--accent)"></i>
+        </div>
+        Retry-Strategie
+      </div>
+      <p class="text-base leading-relaxed muted mb-6">
+        Transiente Fehler (z. B. 5xx, Timeouts, Overload) führen zu begrenzten Wiederholungen mit exponentiellem Backoff und jitter.
+        Quota-Exhaustion (RESOURCE_EXHAUSTED) wird als nicht-retrybar behandelt.
+      </p>
+
+      <div class="grid grid-cols-1 gap-3 text-base">
+        <div class="specrow bg-gradient-to-r from-sky-500/10 to-transparent">
+          <span class="muted font-semibold">RETRY_MAX</span>
+          <span class="mono text-sky-400 text-xl">5</span>
+        </div>
+        <div class="specrow bg-gradient-to-r from-sky-500/10 to-transparent">
+          <span class="muted font-semibold">Base Sleep</span>
+          <span class="mono text-sky-400">0.6s</span>
+        </div>
+        <div class="specrow bg-gradient-to-r from-sky-500/10 to-transparent">
+          <span class="muted font-semibold">Max Sleep</span>
+          <span class="mono text-sky-400">8.0s</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass-card p-8 reveal">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="layers" class="w-6 h-6" style="color:var(--accent2)"></i>
+        </div>
+        Queue-Management
+      </div>
+      <p class="text-base leading-relaxed muted mb-6">
+        Audio/Text/TTS werden über bounded Queues geführt. Bei Überlauf werden Elemente verworfen bzw. gezielt geflusht,
+        um Deadlocks zu vermeiden und Reaktionsfähigkeit zu erhalten.
+      </p>
+      <div class="grid grid-cols-1 gap-3 text-base">
+        <div class="specrow bg-gradient-to-r from-green-500/10 to-transparent">
+          <span class="muted font-semibold">audio_q</span>
+          <span class="mono text-green-400">max 120</span>
+        </div>
+        <div class="specrow bg-gradient-to-r from-green-500/10 to-transparent">
+          <span class="muted font-semibold">text_q</span>
+          <span class="mono text-green-400">max 10</span>
+        </div>
+        <div class="specrow bg-gradient-to-r from-green-500/10 to-transparent">
+          <span class="muted font-semibold">tts_q</span>
+          <span class="mono text-green-400">max 10</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass-card p-6 lg:col-span-2 reveal border-l-4 border-l-amber-400">
+      <div class="flex items-start gap-4">
+        <div class="icon-glow mt-1">
+          <i data-lucide="alert-circle" class="w-5 h-5" style="color:var(--warn)"></i>
+        </div>
+        <div class="text-sm muted">
+          Die Mechanismen erhöhen Robustheit, ersetzen aber keine systematische Evaluation (z. B. WER für STT, Latenzverteilung, Nutzerstudie).
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 12: EVALUATION PLAN & LIMITS =============== -->
+<section class="slide" id="slide-11">
+  <div class="reveal">
+    <h2 class="text-5xl font-bold mb-2">Grenzen & geplanter Evaluationsrahmen</h2>
+    <p class="mt-2 muted text-lg">Trennung zwischen implementiertem Stand und wissenschaftlicher Bewertung</p>
+  </div>
+
+  <div class="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
+    <div class="glass-card p-8 reveal border-l-4 border-l-red-400">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="minus-circle" class="w-6 h-6" style="color:var(--danger)"></i>
+        </div>
+        Grenzen (aktueller Code)
+      </div>
+      <ul class="space-y-4 text-base muted leading-relaxed">
+        <li class="flex items-start gap-3 p-3 rounded-lg bg-red-500/5 border border-red-500/10">
+          <span class="text-red-400 font-bold">!</span>
+          <span>Kein lokales LLM: Antwortgenerierung benötigt Gemini (Cloud).</span>
+        </li>
+        <li class="flex items-start gap-3 p-3 rounded-lg bg-red-500/5 border border-red-500/10">
+          <span class="text-red-400 font-bold">!</span>
+          <span>Keine integrierte Messung: Latenz, WER, RTF werden nicht automatisch erfasst.</span>
+        </li>
+        <li class="flex items-start gap-3 p-3 rounded-lg bg-red-500/5 border border-red-500/10">
+          <span class="text-red-400 font-bold">!</span>
+          <span>Funktionsumfang: Fokus auf Wake/Sleep, Dialog und TTS – kein Skill-/Tool-System.</span>
+        </li>
+        <li class="flex items-start gap-3 p-3 rounded-lg bg-red-500/5 border border-red-500/10">
+          <span class="text-red-400 font-bold">!</span>
+          <span>Datenschutz: Text verlässt das Gerät für LLM (und optional TTS bei edge-tts).</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="glass-card p-8 reveal border-l-4 border-l-green-400">
+      <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+        <div class="icon-glow">
+          <i data-lucide="clipboard-check" class="w-6 h-6" style="color:var(--accent2)"></i>
+        </div>
+        Evaluation (Vorschlag)
+      </div>
+      <div class="space-y-3 text-base muted leading-relaxed">
+        <div class="specrow bg-gradient-to-r from-green-500/10 to-transparent hover:translate-x-2 transition-transform">
+          <span class="muted font-semibold">STT</span>
+          <span>WER/Command-Accuracy (Wake/Sleep) auf Testset</span>
+        </div>
+        <div class="specrow bg-gradient-to-r from-green-500/10 to-transparent hover:translate-x-2 transition-transform">
+          <span class="muted font-semibold">Latenz</span>
+          <span>End-to-End Verteilung (p50/p95) je Segment</span>
+        </div>
+        <div class="specrow bg-gradient-to-r from-green-500/10 to-transparent hover:translate-x-2 transition-transform">
+          <span class="muted font-semibold">Robustheit</span>
+          <span>Fehler-Injektion: Netz/Quota/Device-Overflows</span>
+        </div>
+        <div class="specrow bg-gradient-to-r from-green-500/10 to-transparent hover:translate-x-2 transition-transform">
+          <span class="muted font-semibold">UX</span>
+          <span>Kurze Nutzerstudie: Verständlichkeit, Turn-Taking</span>
+        </div>
+      </div>
+      <div class="mt-6 text-xs muted p-3 rounded-lg bg-white/5 border border-white/10">
+        Hinweis: Diese Punkte sind als wissenschaftlicher Plan formuliert, nicht als bereits implementierte Ergebnisse.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 13: FAZIT =============== -->
+<section class="slide" id="slide-12">
+  <div class="flex-1 flex flex-col justify-center perspective-container">
+    <div class="max-w-5xl mx-auto">
+      <div class="reveal text-center mb-12">
+        <h2 class="text-6xl font-extrabold mb-4">Fazit & Ausblick</h2>
+        <p class="muted text-xl">Zusammenfassung des implementierten Prototyps im Kontext Sprachverarbeitung</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+        <div class="glass-card p-8 reveal border-t-4 border-t-green-400">
+          <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+            <div class="icon-glow">
+              <i data-lucide="check-circle" class="w-6 h-6" style="color:var(--accent2)"></i>
+            </div>
+            Beitrag (implementiert)
+          </div>
+          <ul class="space-y-3 text-base muted leading-relaxed">
+            <li class="flex items-start gap-3"><span class="text-green-400">✓</span> Lokale STT-/Command-Erkennung (Vosk) für Wake/Sleep/Diktat</li>
+            <li class="flex items-start gap-3"><span class="text-green-400">✓</span> Entkoppelte Pipeline (Queues/Threads) für Streaming-Interaktion</li>
+            <li class="flex items-start gap-3"><span class="text-green-400">✓</span> Session-Konsistenz via <span class="mono">session_id</span> + Locking</li>
+            <li class="flex items-start gap-3"><span class="text-green-400">✓</span> Optionale TTS-Ausgabe (edge-tts/pyttsx3) + Feedback-Loop Schutz</li>
+            <li class="flex items-start gap-3"><span class="text-green-400">✓</span> Resilienz: Retry/Backoff + Quota-Handling</li>
+          </ul>
+        </div>
+
+        <div class="glass-card p-8 reveal border-t-4 border-t-sky-400">
+          <div class="font-semibold flex items-center gap-3 text-xl mb-6">
+            <div class="icon-glow">
+              <i data-lucide="rocket" class="w-6 h-6" style="color:var(--accent)"></i>
+            </div>
+            Nächste Schritte (Roadmap)
+          </div>
+          <ul class="space-y-3 text-base muted leading-relaxed">
+            <li class="flex items-start gap-3"><span class="text-sky-400">→</span> Lokales LLM (z. B. llama.cpp) als optionaler Offline-Modus</li>
+            <li class="flex items-start gap-3"><span class="text-sky-400">→</span> Evaluationssuite (WER/Latenz/Robustheit) + Logging</li>
+            <li class="flex items-start gap-3"><span class="text-sky-400">→</span> Skill-System/Tools (z. B. Wissensquellen, Home-Automation)</li>
+            <li class="flex items-start gap-3"><span class="text-sky-400">→</span> Telemetrie-UI (Live-State) statt Simulation</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="glass-card p-6 reveal border-l-4 border-l-sky-400 mb-10">
+        <div class="flex items-start gap-4">
+          <div class="icon-glow mt-1">
+            <i data-lucide="mic" class="w-5 h-5" style="color:var(--accent2)"></i>
+          </div>
+          <div class="text-sm muted">
+            <strong class="text-slate-200">Demo-Hinweis:</strong> Start über Wake-Phrase <span class="mono">„hallo michaela"</span>,
+            Beenden über <span class="mono">„kill switch aktivieren"</span>.
+          </div>
+        </div>
+      </div>
+
+      <div class="text-center text-sm muted reveal">
+        <div class="flex items-center justify-center gap-2 mb-2">
+          <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+          <span>Hochschule Niederrhein · Masterprojekt Sprachverarbeitung</span>
+        </div>
+        <div>Tobias Dome · Betreuung: Prof. Dr. Gref</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="slide-indicator">
+  <span id="slideCounter">1 / 13</span>
+</div>
+
+<script>
+  // Initialize particles
+  function createParticles() {
+    const container = document.getElementById('particles');
+    for (let i = 0; i < 30; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'particle';
+      particle.style.left = Math.random() * 100 + '%';
+      particle.style.animationDelay = Math.random() * 15 + 's';
+      particle.style.animationDuration = (10 + Math.random() * 10) + 's';
+      container.appendChild(particle);
+    }
+  }
+  createParticles();
+
+  lucide.createIcons();
+
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  let current = 0;
+  const fill = document.getElementById('progressFill');
+  const counter = document.getElementById('slideCounter');
+
+  function render(){
+    slides.forEach((s,i)=>{
+      s.classList.remove('active','prev');
+      if(i===current) s.classList.add('active');
+      else if(i<current) s.classList.add('prev');
+    });
+    const p = ((current+1)/slides.length)*100;
+    fill.style.width = p + '%';
+    counter.textContent = `${current + 1} / ${slides.length}`;
+  }
+  
+  function next(){ 
+    if(current < slides.length-1){ 
+      current++; 
+      render(); 
+    } 
+  }
+  
+  function prev(){ 
+    if(current > 0){ 
+      current--; 
+      render(); 
+    } 
+  }
+
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === 'ArrowRight' || e.key === ' '){
+      e.preventDefault(); next();
+    } else if(e.key === 'ArrowLeft'){
+      e.preventDefault(); prev();
+    } else if(e.key.toLowerCase() === 'p'){
+      window.print();
+    }
+  });
+
+  // Click to advance with ripple effect
+  document.addEventListener('click', (e)=>{
+    const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
+    if(['a','button','input','textarea','select'].includes(tag)) return;
+    
+    // Create ripple
+    const ripple = document.createElement('div');
+    ripple.style.cssText = `
+      position: fixed;
+      width: 20px;
+      height: 20px;
+      background: radial-gradient(circle, rgba(56,189,248,0.3) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9999;
+      left: ${e.clientX - 10}px;
+      top: ${e.clientY - 10}px;
+      animation: rippleExpand 0.6s ease-out forwards;
+    `;
+    document.body.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 600);
+    
+    next();
+  });
+
+  // Add ripple animation
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes rippleExpand {
+      to {
+        transform: scale(4);
+        opacity: 0;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+
+  render();
+</script>
+
+</body>
+</html>

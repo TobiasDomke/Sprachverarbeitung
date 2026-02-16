@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Masterprojekt Sprachverarbeitung – Hybrid-Sprachassistent (Vosk + Gemini + TTS)</title>
+
+  <!-- Externe Abhängigkeiten (CDN): TailwindCSS, Inter/JetBrains Mono, Lucide Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    :root{
+      --bg:#0b1220;        /* navy */
+      --card:#0f1a2e;      /* slightly lighter */
+      --border:rgba(148,163,184,.22);
+      --muted:#94a3b8;     /* slate-400 */
+      --text:#e2e8f0;      /* slate-200 */
+      --accent:#38bdf8;    /* sky-400 */
+      --accent2:#22c55e;   /* green-500 */
+      --warn:#f59e0b;      /* amber-500 */
+      --danger:#ef4444;    /* red-500 */
+      --mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      --sans:"Inter", system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    body{ font-family:var(--sans); background:var(--bg); color:var(--text); overflow:hidden; }
+    .mono{ font-family:var(--mono); }
+    /* Subtle paper grid */
+    .bg-grid{
+      position:fixed; inset:0; z-index:-1;
+      background-image:
+        radial-gradient(circle at 1px 1px, rgba(56,189,248,.08) 1px, transparent 0);
+      background-size: 28px 28px;
+      opacity:.55;
+    }
+
+    /* Slide system */
+    .slide{
+      position:absolute; inset:0;
+      padding:3rem;
+      opacity:0; transform: translateX(24px);
+      transition: opacity .45s ease, transform .45s ease;
+      pointer-events:none;
+      display:flex; flex-direction:column;
+      box-sizing:border-box;
+    }
+    .slide.active{ opacity:1; transform:translateX(0); pointer-events:auto; }
+    .slide.prev{ opacity:0; transform:translateX(-24px); }
+
+    /* Top bar */
+    .topbar{
+      position:fixed; left:0; right:0; top:0;
+      padding:12px 24px;
+      display:flex; align-items:center; justify-content:space-between;
+      background: linear-gradient(to bottom, rgba(11,18,32,.92), rgba(11,18,32,.0));
+      border-bottom: 1px solid rgba(148,163,184,.08);
+      backdrop-filter: blur(8px);
+      z-index:50;
+    }
+    .progress{
+      height:3px; width:100%;
+      background: rgba(148,163,184,.12);
+      border-radius:999px; overflow:hidden;
+    }
+    .progress > div{
+      height:100%;
+      width:0%;
+      background: linear-gradient(90deg, rgba(56,189,248,.95), rgba(34,197,94,.95));
+      transition: width .25s ease;
+    }
+
+    /* Cards */
+    .card{
+      background: color-mix(in srgb, var(--card) 92%, black 8%);
+      border:1px solid var(--border);
+      border-radius:16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.22);
+    }
+    .pill{
+      display:inline-flex; align-items:center; gap:.5rem;
+      padding:.25rem .75rem; border-radius:999px;
+      border:1px solid rgba(148,163,184,.25);
+      background: rgba(15,26,46,.55);
+      font-size:.8rem;
+    }
+    .kpi{
+      border-radius:14px;
+      border:1px solid rgba(148,163,184,.22);
+      background: rgba(15,26,46,.45);
+      padding:14px;
+    }
+    .hr{ height:1px; background:rgba(148,163,184,.18); }
+
+    /* Headings */
+    h1{ letter-spacing:-.03em; }
+    h2{ letter-spacing:-.02em; }
+    .muted{ color:var(--muted); }
+
+    /* Table-ish */
+    .specrow{
+      display:flex; justify-content:space-between; gap:16px;
+      padding:10px 12px;
+      border-radius:12px;
+      background: rgba(2,6,23,.25);
+      border:1px solid rgba(148,163,184,.14);
+    }
+
+    /* Footer nav */
+    .navhint{
+      position:fixed; bottom:20px; right:24px;
+      display:flex; gap:12px; align-items:center;
+      color: rgba(226,232,240,.6);
+      font-size:.85rem;
+      user-select:none;
+      z-index:60;
+    }
+    .key{
+      font-family:var(--mono);
+      border:1px solid rgba(148,163,184,.22);
+      background: rgba(15,26,46,.55);
+      padding:.15rem .5rem;
+      border-radius:8px;
+    }
+
+    /* Print-friendly view (optional) */
+    @media print{
+      body{ overflow:visible; }
+      .slide{ position:relative; opacity:1 !important; transform:none !important; page-break-after:always; }
+      .topbar, .navhint{ display:none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+
+<div class="topbar">
+  <div class="flex items-center gap-3">
+    <span class="pill">
+      <i data-lucide="graduation-cap" class="w-4 h-4" style="color:var(--accent)"></i>
+      Masterprojekt · Sprachverarbeitung
+    </span>
+    <span class="hidden md:inline text-sm muted">Hybrid-Sprachassistent (Vosk + Gemini + TTS)</span>
+  </div>
+  <div class="w-72 max-w-[38vw]">
+    <div class="progress"><div id="progressFill"></div></div>
+  </div>
+</div>
+
+<!-- =============== SLIDE 1: TITLE =============== -->
+<section class="slide active" id="slide-0">
+  <div class="flex-1 flex flex-col justify-center">
+    <div class="max-w-5xl">
+      <div class="flex items-start justify-between gap-8 flex-wrap">
+        <div>
+          <h1 class="text-6xl font-extrabold leading-[1.05]">
+            Hybrid-Sprachassistent
+          </h1>
+          <p class="mt-4 text-xl muted">
+            Lokale Spracherkennung (Vosk) · Cloud-basierte Antwortgenerierung (Gemini) · TTS (Edge-TTS oder pyttsx3)
+          </p>
+
+          <div class="mt-6 flex flex-wrap gap-2">
+            <span class="pill"><i data-lucide="mic" class="w-4 h-4" style="color:var(--accent2)"></i> Vosk (lokal)</span>
+            <span class="pill"><i data-lucide="brain" class="w-4 h-4" style="color:var(--accent)"></i> Gemini (Cloud)</span>
+            <span class="pill"><i data-lucide="volume-2" class="w-4 h-4" style="color:var(--warn)"></i> TTS optional (Cloud/Local)</span>
+            <span class="pill"><i data-lucide="shield" class="w-4 h-4" style="color:#a78bfa"></i> Thread-sichere Session</span>
+          </div>
+        </div>
+
+        <div class="card p-6 min-w-[320px] grow md:grow-0">
+          <div class="text-sm muted">Masterprojekt – Hochschule Niederrhein</div>
+          <div class="mt-3 text-lg font-semibold">Tobias Dome</div>
+          <div class="mt-1 text-sm muted">Fach: Sprachverarbeitung</div>
+          <div class="hr my-4"></div>
+          <div class="text-sm">
+            <div class="flex items-center gap-2">
+              <i data-lucide="user" class="w-4 h-4" style="color:var(--accent)"></i>
+              Betreuung: Prof. Dr. Gref
+            </div>
+            <div class="flex items-center gap-2 mt-2">
+              <i data-lucide="calendar" class="w-4 h-4" style="color:var(--accent)"></i>
+              Stand: Implementationsdemo (keine Messwerte im Code hinterlegt)
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-10 card p-6">
+        <div class="flex items-start gap-3">
+          <i data-lucide="info" class="w-5 h-5 mt-0.5" style="color:var(--accent)"></i>
+          <div class="text-sm muted">
+            Hinweis zur wissenschaftlichen Korrektheit: Diese Präsentation beschreibt ausschließlich Funktionen, die im bereitgestellten Python-Code implementiert sind.
+            Konkrete Latenz-/RAM-/Speicherzahlen werden bewusst nicht als Fakten angegeben, da sie im Code nicht gemessen werden.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 2: AGENDA =============== -->
+<section class="slide" id="slide-1">
+  <h2 class="text-4xl font-bold">Agenda</h2>
+  <p class="mt-2 muted">Struktur einer Masterprojekt-Präsentation (Sprachverarbeitung)</p>
+
+  <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
+    <div class="card p-6">
+      <div class="font-semibold mb-3 flex items-center gap-2">
+        <i data-lucide="list" class="w-5 h-5" style="color:var(--accent)"></i> Inhalt
+      </div>
+      <ol class="space-y-3 text-[15px] leading-relaxed">
+        <li><span class="mono muted">1.</span> Motivation & Problemraum</li>
+        <li><span class="mono muted">2.</span> Zielsetzung & Forschungsfragen</li>
+        <li><span class="mono muted">3.</span> Systemdesign (Pipeline, Architektur, State)</li>
+        <li><span class="mono muted">4.</span> Implementationsdetails (STT, LLM, TTS, Robustheit)</li>
+        <li><span class="mono muted">5.</span> Grenzen & geplanter Evaluationsrahmen</li>
+        <li><span class="mono muted">6.</span> Fazit & Ausblick</li>
+      </ol>
+    </div>
+
+    <div class="card p-6">
+      <div class="font-semibold mb-3 flex items-center gap-2">
+        <i data-lucide="file-code" class="w-5 h-5" style="color:var(--accent2)"></i> Artefakt
+      </div>
+      <div class="space-y-3 text-[15px] leading-relaxed">
+        <div class="specrow">
+          <span class="muted">Implementationsform</span>
+          <span class="mono">Python Script</span>
+        </div>
+        <div class="specrow">
+          <span class="muted">STT / Wake-Speech</span>
+          <span class="mono">Vosk (de)</span>
+        </div>
+        <div class="specrow">
+          <span class="muted">Antwortgenerierung</span>
+          <span class="mono">Gemini Chat (Cloud)</span>
+        </div>
+        <div class="specrow">
+          <span class="muted">TTS</span>
+          <span class="mono">edge-tts / pyttsx3</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 3: MOTIVATION =============== -->
+<section class="slide" id="slide-2">
+  <h2 class="text-4xl font-bold">Motivation & Problemraum</h2>
+  <p class="mt-2 muted">Warum ein hybrider Ansatz für Sprachassistenten?</p>
+
+  <div class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
+    <div class="card p-6">
+      <div class="flex items-center gap-2 font-semibold">
+        <i data-lucide="cpu" class="w-5 h-5" style="color:var(--accent2)"></i>
+        Lokale Signal-/Sprachverarbeitung
+      </div>
+      <p class="mt-3 text-sm leading-relaxed muted">
+        Wake-Phrase-Erkennung und Diktat (STT) können lokal erfolgen. Das reduziert die Notwendigkeit,
+        Roh-Audio in die Cloud zu senden.
+      </p>
+    </div>
+
+    <div class="card p-6">
+      <div class="flex items-center gap-2 font-semibold">
+        <i data-lucide="cloud" class="w-5 h-5" style="color:var(--accent)"></i>
+        Cloud-LLM als Wissens- und Dialogkomponente
+      </div>
+      <p class="mt-3 text-sm leading-relaxed muted">
+        Für inhaltlich flexible Antworten wird ein Cloud-LLM genutzt. Im Code erfolgt die Interaktion über eine Chat-Session
+        (Gemini) mit System-Instructions.
+      </p>
+    </div>
+
+    <div class="card p-6">
+      <div class="flex items-center gap-2 font-semibold">
+        <i data-lucide="shield" class="w-5 h-5" style="color:#a78bfa"></i>
+        Systemrobustheit im Streaming-Betrieb
+      </div>
+      <p class="mt-3 text-sm leading-relaxed muted">
+        Streaming-Audio, konkurrierende Threads und Ausfallszenarien (Netzwerk/Quota) erfordern saubere
+        Zustands- und Fehlerbehandlung.
+      </p>
+    </div>
+
+    <div class="card p-6 lg:col-span-3">
+      <div class="flex items-start gap-3">
+        <i data-lucide="check-circle" class="w-5 h-5 mt-0.5" style="color:var(--accent2)"></i>
+        <div>
+          <div class="font-semibold">Projektfokus (aus dem implementierten System ableitbar)</div>
+          <ul class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm muted">
+            <li>• Wake/Sleep/Exit per fest definierter Phrasen (de)</li>
+            <li>• Parallelisierung: Audio-Loop + LLM-Worker + TTS-Worker</li>
+            <li>• Session-Invalidierung via <span class="mono">session_id</span> zur Konsistenz</li>
+            <li>• Retry/Backoff-Strategie bei transienten API-Fehlern</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 4: ZIELE & FORSCHUNGSFRAGEN =============== -->
+<section class="slide" id="slide-3">
+  <h2 class="text-4xl font-bold">Zielsetzung & Forschungsfragen</h2>
+  <p class="mt-2 muted">Formulierung im akademischen Stil (ohne unbelegte Leistungsversprechen)</p>
+
+  <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="target" class="w-5 h-5" style="color:var(--accent)"></i> Zielsetzung
+      </div>
+      <p class="mt-3 text-sm leading-relaxed muted">
+        Entwicklung eines prototypischen Sprachassistenten, der lokale Spracherkennung (Vosk) mit einer cloudbasierten
+        Dialog-/Antwortkomponente (Gemini) kombiniert und eine optionale Sprachausgabe (TTS) bereitstellt.
+      </p>
+      <div class="hr my-4"></div>
+      <div class="text-sm">
+        <div class="font-semibold mb-2">Nicht-Ziele (transparent)</div>
+        <ul class="space-y-1 muted">
+          <li>• Kein vollständig offline arbeitendes LLM im aktuellen Code</li>
+          <li>• Keine integrierte automatische Latenz-/Qualitätsmessung im aktuellen Code</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="help-circle" class="w-5 h-5" style="color:var(--accent2)"></i> Forschungsfragen (projektbezogen)
+      </div>
+      <ul class="mt-3 space-y-3 text-sm leading-relaxed">
+        <li class="flex items-start gap-3">
+          <span class="pill">F1</span>
+          <span class="muted">Wie kann Wake-Phrase-Erkennung und Diktat lokal realisiert werden, ohne Cloud-STT zu benötigen?</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <span class="pill">F2</span>
+          <span class="muted">Welche Architektur entkoppelt Audioaufnahme, LLM-Aufruf und TTS robust (Queues/Threads)?</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <span class="pill">F3</span>
+          <span class="muted">Wie lassen sich Session-Konsistenz und Fehlerszenarien (Retry/Quota) in einer laufenden Sprachinteraktion handhaben?</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="card p-6 lg:col-span-2">
+      <div class="flex items-start gap-3">
+        <i data-lucide="alert-triangle" class="w-5 h-5 mt-0.5" style="color:var(--warn)"></i>
+        <div class="text-sm muted">
+          Hinweis: Die Fragen sind so formuliert, dass sie dem implementierten Stand entsprechen und keine Aussage über
+          „beste“ Performance (ms/s) implizieren.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 5: PIPELINE OVERVIEW =============== -->
+<section class="slide" id="slide-4">
+  <h2 class="text-4xl font-bold">Pipeline-Übersicht</h2>
+  <p class="mt-2 muted">Signalfluss vom Mikrofon bis zur Sprachausgabe (entspricht dem Codepfad)</p>
+
+  <div class="mt-8 grid grid-cols-1 lg:grid-cols-5 gap-4 flex-1">
+    <div class="card p-5 lg:col-span-1">
+      <div class="flex items-center gap-2 font-semibold">
+        <i data-lucide="mic" class="w-5 h-5" style="color:var(--accent2)"></i> Audio
+      </div>
+      <p class="mt-2 text-sm muted">RawInputStream → Bytes → <span class="mono">audio_q</span></p>
+    </div>
+
+    <div class="card p-5 lg:col-span-1">
+      <div class="flex items-center gap-2 font-semibold">
+        <i data-lucide="ear" class="w-5 h-5" style="color:var(--accent2)"></i> Wake/Sleep
+      </div>
+      <p class="mt-2 text-sm muted">Vosk-Recognizer mit Grammar (Wake/Sleep/Exit)</p>
+    </div>
+
+    <div class="card p-5 lg:col-span-1">
+      <div class="flex items-center gap-2 font-semibold">
+        <i data-lucide="keyboard" class="w-5 h-5" style="color:var(--accent2)"></i> Diktat
+      </div>
+      <p class="mt-2 text-sm muted">Vosk-Diktat → Text → <span class="mono">text_q</span></p>
+    </div>
+
+    <div class="card p-5 lg:col-span-1">
+      <div class="flex items-center gap-2 font-semibold">
+        <i data-lucide="brain" class="w-5 h-5" style="color:var(--accent)"></i> LLM
+      </div>
+      <p class="mt-2 text-sm muted">Gemini Chat-Session (Cloud) → Antworttext</p>
+    </div>
+
+    <div class="card p-5 lg:col-span-1">
+      <div class="flex items-center gap-2 font-semibold">
+        <i data-lucide="volume-2" class="w-5 h-5" style="color:var(--warn)"></i> TTS
+      </div>
+      <p class="mt-2 text-sm muted">Antwort → <span class="mono">tts_q</span> → edge-tts/pyttsx3</p>
+    </div>
+
+    <div class="card p-6 lg:col-span-5">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="kpi">
+          <div class="text-xs muted">Aktivierung</div>
+          <div class="mt-1 font-semibold">Wake-Phrase: <span class="mono">„hallo michaela“</span></div>
+        </div>
+        <div class="kpi">
+          <div class="text-xs muted">Deaktivierung</div>
+          <div class="mt-1 font-semibold">Sleep-Phrase: <span class="mono">„danke michaela“</span></div>
+        </div>
+        <div class="kpi">
+          <div class="text-xs muted">Beenden</div>
+          <div class="mt-1 font-semibold">Kill-Switch: <span class="mono">„kill switch aktivieren“</span></div>
+        </div>
+      </div>
+
+      <div class="mt-4 text-sm muted flex items-start gap-3">
+        <i data-lucide="lock" class="w-5 h-5 mt-0.5" style="color:#a78bfa"></i>
+        <div>
+          Datenschutz-Transparenz: Audio wird lokal verarbeitet; für die Antwortgenerierung wird der erkannte Text
+          an Gemini gesendet. Bei edge-tts kann zusätzlich Text für TTS in die Cloud gehen (optional).
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 6: ARCHITEKTUR & THREADING =============== -->
+<section class="slide" id="slide-5">
+  <h2 class="text-4xl font-bold">Architektur & Parallelisierung</h2>
+  <p class="mt-2 muted">Audioaufnahme entkoppelt von LLM/TTS durch Queues und Worker-Threads</p>
+
+  <div class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="activity" class="w-5 h-5" style="color:var(--accent2)"></i> Main Loop (Audio)
+      </div>
+      <ul class="mt-3 space-y-2 text-sm muted">
+        <li>• <span class="mono">sounddevice.RawInputStream</span> + Callback</li>
+        <li>• Vosk: Wake/Sleep-Recognizer + Diktat-Recognizer</li>
+        <li>• State: <span class="mono">active</span> und <span class="mono">session_id</span></li>
+      </ul>
+    </div>
+
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="brain" class="w-5 h-5" style="color:var(--accent)"></i> Gemini Worker
+      </div>
+      <ul class="mt-3 space-y-2 text-sm muted">
+        <li>• Erzeugt Chat-Session bei Wake</li>
+        <li>• Sendet Diktat-Text → Antwort</li>
+        <li>• Retry/Backoff bei transienten Fehlern</li>
+      </ul>
+    </div>
+
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="volume-2" class="w-5 h-5" style="color:var(--warn)"></i> TTS Worker
+      </div>
+      <ul class="mt-3 space-y-2 text-sm muted">
+        <li>• <span class="mono">edge-tts</span> (optional) oder <span class="mono">pyttsx3</span> (optional)</li>
+        <li>• Stop-Signal (<span class="mono">__STOP__</span>) unterbricht Ausgabe</li>
+        <li>• Blockiert STT während Ausgabe via Event (Feedback-Loop)</li>
+      </ul>
+    </div>
+
+    <div class="card p-6 lg:col-span-3">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="git-merge" class="w-5 h-5" style="color:#a78bfa"></i> Kommunikationskanäle
+      </div>
+      <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        <div class="specrow"><span class="muted">audio_q</span><span class="mono">Bytes (PCM)</span></div>
+        <div class="specrow"><span class="muted">text_q</span><span class="mono">Diktat/Commands</span></div>
+        <div class="specrow"><span class="muted">tts_q</span><span class="mono">Antworttexte/Control</span></div>
+      </div>
+      <div class="mt-4 text-sm muted">
+        Wichtig: Blocking-Operationen existieren (z. B. Wiedergabe), sind aber vom Audio-Loop entkoppelt (Worker-Kontext).
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 7: STATE & SESSION CONSISTENCY =============== -->
+<section class="slide" id="slide-6">
+  <h2 class="text-4xl font-bold">Zustandsmodell & Session-Konsistenz</h2>
+  <p class="mt-2 muted">Thread-sicherer State + Invalidation alter Requests (session_id)</p>
+
+  <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="toggle-left" class="w-5 h-5" style="color:var(--accent)"></i> Zustände (konzeptuell)
+      </div>
+      <div class="mt-4 grid grid-cols-1 gap-3 text-sm">
+        <div class="specrow"><span class="muted">INACTIVE</span><span class="mono">Warte auf Wake</span></div>
+        <div class="specrow"><span class="muted">ACTIVE</span><span class="mono">Diktat + LLM/TTS</span></div>
+        <div class="specrow"><span class="muted">EXIT</span><span class="mono">Programmende</span></div>
+      </div>
+      <div class="mt-4 text-sm muted">
+        Die Präsentation unterscheidet zusätzlich “PROCESSING/SPEAKING” als Phasen innerhalb von ACTIVE (kein eigener persistenter State im Code).
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="shield" class="w-5 h-5" style="color:var(--accent2)"></i> Mechanismen im Code
+      </div>
+      <ul class="mt-4 space-y-2 text-sm muted leading-relaxed">
+        <li>• <span class="mono">state_lock</span> schützt <span class="mono">active</span> und <span class="mono">session_id</span></li>
+        <li>• <span class="mono">session_id</span> wird bei Wake/Sleep inkrementiert → alte Worker-Operationen werden verworfen</li>
+        <li>• Cooldown und Arming Delay reduzieren Fehltrigger nach State-Wechsel</li>
+        <li>• Während TTS: Diktat wird unterdrückt (Event), um Feedback-Schleifen zu vermeiden</li>
+      </ul>
+    </div>
+
+    <div class="card p-6 lg:col-span-2">
+      <div class="flex items-start gap-3">
+        <i data-lucide="info" class="w-5 h-5 mt-0.5" style="color:var(--accent)"></i>
+        <div class="text-sm muted">
+          Diese Folie beschreibt die Logik aus dem Code. Sie macht keine Aussage darüber, wie gut die Erkennung in der Praxis ist
+          (dafür wären Tests/Evaluation nötig).
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 8: STT DETAILS =============== -->
+<section class="slide" id="slide-7">
+  <h2 class="text-4xl font-bold">Spracherkennung (STT) im Prototyp</h2>
+  <p class="mt-2 muted">Vosk-Recognizer mit Grammar (Commands) und freiem Diktat</p>
+
+  <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="mic-vocal" class="w-5 h-5" style="color:var(--accent2)"></i> Command-Erkennung
+      </div>
+      <p class="mt-3 text-sm muted leading-relaxed">
+        Für Wake/Sleep/Exit wird ein Recognizer mit begrenzter Grammar verwendet. Dies fokussiert die Erkennung auf
+        wenige Phrasen (de) und dient der Zustandssteuerung.
+      </p>
+      <div class="mt-4 text-sm">
+        <div class="specrow"><span class="muted">Wake</span><span class="mono">hallo michaela</span></div>
+        <div class="specrow mt-2"><span class="muted">Sleep</span><span class="mono">danke michaela</span></div>
+        <div class="specrow mt-2"><span class="muted">Exit</span><span class="mono">kill switch aktivieren</span></div>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="type" class="w-5 h-5" style="color:var(--accent)"></i> Freies Diktat
+      </div>
+      <p class="mt-3 text-sm muted leading-relaxed">
+        Im ACTIVE-Modus wird ein separater Vosk-Recognizer ohne eingeschränkte Grammar für Diktat genutzt. Erkannter Text
+        wird in <span class="mono">text_q</span> gestellt, sofern er nicht mit Command-Phrasen beginnt.
+      </p>
+      <div class="mt-4 kpi">
+        <div class="text-xs muted">Konfiguration (aus Code)</div>
+        <div class="mt-1 text-sm">
+          SAMPLE_RATE: <span class="mono">16000</span> · CHANNELS: <span class="mono">1</span> · BLOCKSIZE: <span class="mono">4000</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 9: LLM & PROMPT =============== -->
+<section class="slide" id="slide-8">
+  <h2 class="text-4xl font-bold">Dialog-/Antwortkomponente (LLM)</h2>
+  <p class="mt-2 muted">Gemini Chat mit System-Instructions (Stil/Constraints)</p>
+
+  <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="brain" class="w-5 h-5" style="color:var(--accent)"></i> Gemini-Integration (Cloud)
+      </div>
+      <ul class="mt-4 space-y-2 text-sm muted leading-relaxed">
+        <li>• Erstellung einer Chat-Session bei Wake</li>
+        <li>• Konfiguration: max_output_tokens (im Code: 800), Temperatur und top_p</li>
+        <li>• Antworttext wird extrahiert und optional an TTS übergeben</li>
+      </ul>
+
+      <div class="mt-4 card p-4">
+        <div class="text-xs muted">Transparenz</div>
+        <div class="mt-1 text-sm muted">
+          Der Prototyp sendet erkannte Nutzereingaben (Text) an Gemini. Audio wird nicht an Gemini gesendet.
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="message-square" class="w-5 h-5" style="color:var(--accent2)"></i> System-Instructions (Stil)
+      </div>
+      <p class="mt-3 text-sm muted leading-relaxed">
+        Im Code sind Instructions definiert, die kurze Antworten, deutsche Sprache und einen „Butler“-Ton (trocken, nicht respektlos) vorgeben.
+        In dieser Präsentation wird dies als <em>Designentscheidung für die Demo</em> eingeordnet.
+      </p>
+      <div class="mt-4 kpi">
+        <div class="text-xs muted">Beispielhafte Constraints (aus Code)</div>
+        <ul class="mt-2 text-sm muted space-y-1">
+          <li>• Antworte immer auf Deutsch</li>
+          <li>• Kurz, sachlich; max. 5 Bulletpoints</li>
+          <li>• Erfinde nichts als Fakt; bei Unsicherheit transparent sein</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 10: TTS =============== -->
+<section class="slide" id="slide-9">
+  <h2 class="text-4xl font-bold">Sprachausgabe (TTS)</h2>
+  <p class="mt-2 muted">Optionaler Baustein: edge-tts (Cloud) oder pyttsx3 (lokal)</p>
+
+  <div class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="cloud" class="w-5 h-5" style="color:var(--warn)"></i> edge-tts (optional)
+      </div>
+      <p class="mt-3 text-sm muted leading-relaxed">
+        Neural TTS über edge-tts; im Code wird versucht, WAV (riff pcm) zu erzeugen; fallback ggf. MP3.
+      </p>
+      <div class="mt-4 text-sm">
+        <div class="specrow"><span class="muted">Voice</span><span class="mono">de-DE-KatjaNeural</span></div>
+        <div class="specrow mt-2"><span class="muted">Playback</span><span class="mono">ffplay / mpg123</span></div>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="cpu" class="w-5 h-5" style="color:var(--accent2)"></i> pyttsx3 (optional)
+      </div>
+      <p class="mt-3 text-sm muted leading-relaxed">
+        Offline-TTS; im Code als Fallback vorgesehen. Satzweise Ausgabe zur Verständlichkeit.
+      </p>
+      <div class="mt-4 text-sm">
+        <div class="specrow"><span class="muted">Rate</span><span class="mono">175 WPM</span></div>
+        <div class="specrow mt-2"><span class="muted">Voice</span><span class="mono">Hinweis „de“</span></div>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="ban" class="w-5 h-5" style="color:#a78bfa"></i> Feedback-Loop Schutz
+      </div>
+      <p class="mt-3 text-sm muted leading-relaxed">
+        Während der TTS-Ausgabe wird das Diktat unterdrückt (Event). Das verhindert, dass der Assistent seine eigene Ausgabe als Eingabe erkennt.
+      </p>
+      <div class="mt-4 card p-4">
+        <div class="text-xs muted">Steuersignale (Queues)</div>
+        <div class="mt-1 text-sm muted"><span class="mono">__STOP__</span> stoppt Ausgabe und leert die TTS-Queue.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 11: ROBUSTHEIT =============== -->
+<section class="slide" id="slide-10">
+  <h2 class="text-4xl font-bold">Robustheit & Fehlerbehandlung</h2>
+  <p class="mt-2 muted">Retry/Backoff, Quota-Erkennung und Queue-Management</p>
+
+  <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="rotate-cw" class="w-5 h-5" style="color:var(--accent)"></i> Retry-Strategie
+      </div>
+      <p class="mt-3 text-sm muted leading-relaxed">
+        Transiente Fehler (z. B. 5xx, Timeouts, Overload) führen zu begrenzten Wiederholungen mit exponentiellem Backoff und jitter.
+        Quota-Exhaustion (RESOURCE_EXHAUSTED) wird als nicht-retrybar behandelt.
+      </p>
+
+      <div class="mt-4 grid grid-cols-1 gap-2 text-sm">
+        <div class="specrow"><span class="muted">RETRY_MAX</span><span class="mono">5</span></div>
+        <div class="specrow"><span class="muted">Base Sleep</span><span class="mono">0.6s</span></div>
+        <div class="specrow"><span class="muted">Max Sleep</span><span class="mono">8.0s</span></div>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="layers" class="w-5 h-5" style="color:var(--accent2)"></i> Queue-Management
+      </div>
+      <p class="mt-3 text-sm muted leading-relaxed">
+        Audio/Text/TTS werden über bounded Queues geführt. Bei Überlauf werden Elemente verworfen bzw. gezielt geflusht,
+        um Deadlocks zu vermeiden und Reaktionsfähigkeit zu erhalten.
+      </p>
+      <div class="mt-4 grid grid-cols-1 gap-2 text-sm">
+        <div class="specrow"><span class="muted">audio_q</span><span class="mono">max 120</span></div>
+        <div class="specrow"><span class="muted">text_q</span><span class="mono">max 10</span></div>
+        <div class="specrow"><span class="muted">tts_q</span><span class="mono">max 10</span></div>
+      </div>
+    </div>
+
+    <div class="card p-6 lg:col-span-2">
+      <div class="flex items-start gap-3">
+        <i data-lucide="alert-circle" class="w-5 h-5 mt-0.5" style="color:var(--warn)"></i>
+        <div class="text-sm muted">
+          Die Mechanismen erhöhen Robustheit, ersetzen aber keine systematische Evaluation (z. B. WER für STT, Latenzverteilung, Nutzerstudie).
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 12: EVALUATION PLAN & LIMITS =============== -->
+<section class="slide" id="slide-11">
+  <h2 class="text-4xl font-bold">Grenzen & geplanter Evaluationsrahmen</h2>
+  <p class="mt-2 muted">Trennung zwischen implementiertem Stand und wissenschaftlicher Bewertung</p>
+
+  <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="minus-circle" class="w-5 h-5" style="color:var(--danger)"></i> Grenzen (aktueller Code)
+      </div>
+      <ul class="mt-4 space-y-2 text-sm muted leading-relaxed">
+        <li>• Kein lokales LLM: Antwortgenerierung benötigt Gemini (Cloud).</li>
+        <li>• Keine integrierte Messung: Latenz, WER, RTF werden nicht automatisch erfasst.</li>
+        <li>• Funktionsumfang: Fokus auf Wake/Sleep, Dialog und TTS – kein Skill-/Tool-System.</li>
+        <li>• Datenschutz: Text verlässt das Gerät für LLM (und optional TTS bei edge-tts).</li>
+      </ul>
+    </div>
+
+    <div class="card p-6">
+      <div class="font-semibold flex items-center gap-2">
+        <i data-lucide="clipboard-check" class="w-5 h-5" style="color:var(--accent2)"></i> Evaluation (Vorschlag)
+      </div>
+      <div class="mt-4 space-y-3 text-sm muted leading-relaxed">
+        <div class="specrow"><span class="muted">STT</span><span>WER/Command-Accuracy (Wake/Sleep) auf Testset</span></div>
+        <div class="specrow"><span class="muted">Latenz</span><span>End-to-End Verteilung (p50/p95) je Segment</span></div>
+        <div class="specrow"><span class="muted">Robustheit</span><span>Fehler-Injektion: Netz/Quota/Device-Overflows</span></div>
+        <div class="specrow"><span class="muted">UX</span><span>Kurze Nutzerstudie: Verständlichkeit, Turn-Taking</span></div>
+      </div>
+      <div class="mt-4 text-xs muted">
+        Hinweis: Diese Punkte sind als wissenschaftlicher Plan formuliert, nicht als bereits implementierte Ergebnisse.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== SLIDE 13: FAZIT =============== -->
+<section class="slide" id="slide-12">
+  <div class="flex-1 flex flex-col justify-center">
+    <div class="max-w-5xl">
+      <h2 class="text-5xl font-extrabold">Fazit & Ausblick</h2>
+      <p class="mt-3 muted text-lg">Zusammenfassung des implementierten Prototyps im Kontext Sprachverarbeitung</p>
+
+      <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="card p-6">
+          <div class="font-semibold flex items-center gap-2">
+            <i data-lucide="check-circle" class="w-5 h-5" style="color:var(--accent2)"></i> Beitrag (implementiert)
+          </div>
+          <ul class="mt-4 space-y-2 text-sm muted leading-relaxed">
+            <li>• Lokale STT-/Command-Erkennung (Vosk) für Wake/Sleep/Diktat</li>
+            <li>• Entkoppelte Pipeline (Queues/Threads) für Streaming-Interaktion</li>
+            <li>• Session-Konsistenz via <span class="mono">session_id</span> + Locking</li>
+            <li>• Optionale TTS-Ausgabe (edge-tts/pyttsx3) + Feedback-Loop Schutz</li>
+            <li>• Resilienz: Retry/Backoff + Quota-Handling</li>
+          </ul>
+        </div>
+
+        <div class="card p-6">
+          <div class="font-semibold flex items-center gap-2">
+            <i data-lucide="rocket" class="w-5 h-5" style="color:var(--accent)"></i> Nächste Schritte (Roadmap)
+          </div>
+          <ul class="mt-4 space-y-2 text-sm muted leading-relaxed">
+            <li>• Lokales LLM (z. B. llama.cpp) als optionaler Offline-Modus</li>
+            <li>• Evaluationssuite (WER/Latenz/Robustheit) + Logging</li>
+            <li>• Skill-System/Tools (z. B. Wissensquellen, Home-Automation)</li>
+            <li>• Telemetrie-UI (Live-State) statt Simulation</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="mt-8 card p-6">
+        <div class="flex items-start gap-3">
+          <i data-lucide="mic" class="w-5 h-5 mt-0.5" style="color:var(--accent2)"></i>
+          <div class="text-sm muted">
+            Demo-Hinweis: Start über Wake-Phrase <span class="mono">„hallo michaela“</span>,
+            Beenden über <span class="mono">„kill switch aktivieren“</span>.
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-10 text-sm muted">
+        Hochschule Niederrhein · Masterprojekt Sprachverarbeitung · Tobias Dome · Betreuung: Prof. Dr. Gref
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="navhint">
+  <span><span class="key">←</span> zurück</span>
+  <span><span class="key">→</span> weiter</span>
+  <span><span class="key">P</span> print</span>
+</div>
+
+<script>
+  lucide.createIcons();
+
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  let current = 0;
+  const fill = document.getElementById('progressFill');
+
+  function render(){
+    slides.forEach((s,i)=>{
+      s.classList.remove('active','prev');
+      if(i===current) s.classList.add('active');
+      else if(i<current) s.classList.add('prev');
+    });
+    const p = ((current+1)/slides.length)*100;
+    fill.style.width = p + '%';
+  }
+  function next(){ if(current < slides.length-1){ current++; render(); } }
+  function prev(){ if(current > 0){ current--; render(); } }
+
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === 'ArrowRight' || e.key === ' '){
+      e.preventDefault(); next();
+    } else if(e.key === 'ArrowLeft'){
+      e.preventDefault(); prev();
+    } else if(e.key.toLowerCase() === 'p'){
+      window.print();
+    }
+  });
+
+  // click anywhere (except interactive controls) to advance
+  document.addEventListener('click', (e)=>{
+    const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
+    if(['a','button','input','textarea','select'].includes(tag)) return;
+    next();
+  });
+
+  render();
+</script>
+
+</body>
+</html>
