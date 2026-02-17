@@ -1,3 +1,32 @@
+#### norm_text(s): 
+Macht den Text klein, entfernt Sonderzeichen, lässt nur Buchstaben/Zahlen durch und reduziert Leerzeichen auf genau ein einzelnes.
+
+#### starts_with_phrase(text, phrase): 
+Prüft robust, ob der normalisierte Text mit der angegebenen Wortfolge beginnt.
+
+#### pick_input_device_by_hint(hint): 
+Sucht in den Audio-Eingabegeräten nach einem Gerätenamen, der den Hint enthält, und gibt dessen Index zurück.
+
+#### flush_queue(q, max_items): 
+Leert eine Queue schnell, indem bis zu max_items Elemente ohne Warten herausgezogen werden.
+
+#### _status_code(exc): 
+Versucht, aus einer Exception ein status_code-Attribut (z.B. HTTP-Status) auszulesen.
+
+#### _looks_like_quota_exhausted(exc):
+Erkennt anhand der Fehlermeldung, ob es nach „Quota/Limit ausgeschöpft“ aussieht.
+
+#### should_retry(exc): 
+Entscheidet, ob ein Fehler wahrscheinlich temporär ist und ein Retry sinnvoll ist (z.B. 5xx, Timeout, Overload), außer bei Quota-Exhaustion.
+
+#### backoff_sleep(attempt): 
+Wartet mit exponentiellem Backoff plus etwas Zufallsanteil, bevor erneut versucht wird.
+
+#### clean_for_tts(text): 
+Entfernt Codeblöcke/Markdown-Zeichen und glättet Whitespaces, damit TTS den Text sauber spricht.
+
+
+
 # Sprechtext – Hybrid-Sprachassistent (Vosk + Gemini + TTS)
 
 > **Hinweis für dich beim Vortragen:** Sprich in kurzen Sätzen. Vermeide Performance-Behauptungen (ms, WER etc.), außer du zeigst echte Messwerte. Markiere klar „Prototyp / Implementationsdemo“.

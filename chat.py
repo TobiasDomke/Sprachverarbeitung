@@ -367,9 +367,6 @@ def tts_speak_edge(text: str):
     else:
         _play_mp3_bytes_blocking(audio_bytes)
 
-
-
-
 def tts_speak_pyttsx3(engine, text: str):
     text = clean_for_tts(text)
     if not text:
